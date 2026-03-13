@@ -8,20 +8,20 @@
 - Total columns (variables): 4
 - Overall Status: 
 
-## 1. Duplicate IDs Check
+## 1. ✅ Duplicate IDs Check
 
 Status: PASSED
 
 - No duplicated `patient_id` was found
 - `patient_id` sequence is uncontinuous but increasing (188,981 to 3,139,196)
 
-## 2. Missing Value Check
+## 2. ✅ Missing Value Check
 
 Status: PASSED
 
 - No missing value for all 4 variables (`patient_id`, `basal_pattern`, `sudden_death`, and `brugada`) for all tuples
 
-## 3. Value Range Check
+## 3. ✅ Value Range Check
 
 Status: PASSED
 
@@ -34,7 +34,7 @@ Status: PASSED
 - `sudden_death`: [0 to 1]
 - `brugada`: [0 to 2]
 
-## 4. Illogical Combinations Check
+## 4. ⚠️ Illogical Combinations Check
 
 Status: ISSUE FOUND
 
@@ -60,7 +60,7 @@ Status: ISSUE FOUND
 
 **Logical Check Score**: 92.56% (Logical)
 
-## 5. Data Quality Score
+## 5. 📄 Data Quality Score
 - **Duplicate IDs**: ✅ 100% (No duplicated `patient_id`)
 - **Missing Values**: ✅ 100% (No missing value)
 - **Value Ranges**: ✅ 100% (no outliers as for all categorical variables)
