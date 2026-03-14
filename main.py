@@ -15,23 +15,19 @@ def main():
     print(f"Loaded {all_signals.shape[0]} recordings.")
 
     print("\n--- Phase 2: Method 1 (Raw Baseline) ---")
-    X_train_raw, X_test_raw = run_raw_baseline_pipeline(
+    folds_v1 = run_raw_baseline_pipeline(
         all_signals,
         labels,
         metadata_csv_path=CSV_PATH,
         flagged_csv_path='data_preprocessing/flagged_recordings_phase1.csv',
     )
     print("'dataset_v1_raw.npy' has been created.")
-    print(f"Raw baseline training samples: {len(X_train_raw)}")
-    print(f"Raw baseline testing samples: {len(X_test_raw)}")
+    print(f"Raw baseline: {len(folds_v1)} folds | fold 0 -> train: {len(folds_v1[0]['X_train'])}, test: {len(folds_v1[0]['X_test'])}")
 
     print("\n--- Phase 2: Method 2 (Clinical Filtered) ---")
-    # This calls the pipeline: Split -> Filter -> Scale -> Save
-    X_train, X_test = run_preprocessing_pipeline(all_signals, labels)
-    
-    print("\n'dataset_v2_filtered.npy' has been created.")
-    print(f"Training samples: {len(X_train)}")
-    print(f"Testing samples: {len(X_test)}")
+    folds_v2 = run_preprocessing_pipeline(all_signals, labels)
+    print("'dataset_v2_filtered.npy' has been created.")
+    print(f"Clinical filtered: {len(folds_v2)} folds | fold 0 -> train: {len(folds_v2[0]['X_train'])}, test: {len(folds_v2[0]['X_test'])}")
 
 if __name__ == "__main__":
     main()

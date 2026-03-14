@@ -2,8 +2,34 @@
   "total_records": 363,
   "excluded_records": 14,
   "retained_records": 349,
-  "train_records": 244,
-  "test_records": 105,
+  "n_splits": 5,
+  "fold_sizes": [
+    {
+      "fold": 0,
+      "train": 279,
+      "test": 70
+    },
+    {
+      "fold": 1,
+      "train": 279,
+      "test": 70
+    },
+    {
+      "fold": 2,
+      "train": 279,
+      "test": 70
+    },
+    {
+      "fold": 3,
+      "train": 279,
+      "test": 70
+    },
+    {
+      "fold": 4,
+      "train": 280,
+      "test": 69
+    }
+  ],
   "class_counts_after_exclusion": {
     "0": 277,
     "1": 65,

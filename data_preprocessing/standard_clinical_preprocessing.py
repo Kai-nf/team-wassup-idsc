@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import json
 from scipy.signal import butter, filtfilt, iirnotch
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 
 
@@ -19,14 +19,14 @@ def run_raw_baseline_pipeline(
     metadata_csv_path='metadata.csv',
     flagged_csv_path='data_preprocessing/flagged_recordings_phase1.csv',
     output_dir='data_preprocessing',
-    test_size=0.30,
+    n_splits=5,
     random_state=42,
 ):
     """
     Method 1 (Raw Baseline):
     - Keep raw signals (no filtering)
     - Drop recordings flagged during Phase 1 EDA
-    - Holdout split 70/30 stratified by class
+    - 5-Fold Stratified K-Fold Cross-Validation
     - Save dataset and audit artifacts
     """
     metadata = pd.read_csv(metadata_csv_path)
@@ -70,28 +70,27 @@ def run_raw_baseline_pipeline(
         raise ValueError("No records left after exclusion. Check flagged list and source data.")
 
     class_counts = pd.Series(y_clean).value_counts().sort_index()
-    try:
-        X_train, X_test, y_train, y_test, id_train, id_test = train_test_split(
-            X_clean,
-            y_clean,
-            ids_clean,
-            test_size=test_size,
-            random_state=random_state,
-            stratify=y_clean,
-        )
-    except ValueError as exc:
-        raise ValueError(
-            f"Stratified split failed. Class counts after exclusion: {class_counts.to_dict()}"
-        ) from exc
+
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    folds = []
+    clean_original_indices = np.where(keep_mask)[0]
+    test_fold_assignments = np.full(len(X_clean), -1, dtype=int)
+
+    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_clean, y_clean)):
+        folds.append({
+            'fold': fold_idx,
+            'X_train': X_clean[train_idx],
+            'X_test': X_clean[test_idx],
+            'y_train': y_clean[train_idx],
+            'y_test': y_clean[test_idx],
+            'id_train': ids_clean[train_idx],
+            'id_test': ids_clean[test_idx],
+        })
+        test_fold_assignments[test_idx] = fold_idx
 
     dataset_v1 = {
-        'X_train': X_train,
-        'X_test': X_test,
-        'y_train': y_train,
-        'y_test': y_test,
-        'id_train': id_train,
-        'id_test': id_test,
-        'split_ratio': {'train': 1 - test_size, 'test': test_size},
+        'folds': folds,
+        'n_splits': n_splits,
         'random_state': random_state,
         'exclusion_policy': [
             'flagged_in_phase1',
@@ -101,32 +100,34 @@ def run_raw_baseline_pipeline(
     }
     np.save(output_path / 'dataset_v1_raw.npy', dataset_v1)
 
+    test_fold_col = pd.Series(-1, index=metadata.index, dtype=int)
+    for i, orig_idx in enumerate(clean_original_indices):
+        test_fold_col.iloc[orig_idx] = test_fold_assignments[i]
+
     manifest = pd.DataFrame(
         {
             'patient_id': metadata_ids,
             'label': labels_series,
             'included': keep_mask,
             'drop_reason': dropped_reason,
-            'split': '',
+            'test_fold': test_fold_col,
         }
     )
-
-    train_set = set(id_train.tolist())
-    test_set = set(id_test.tolist())
-    manifest.loc[manifest['included'] & manifest['patient_id'].isin(train_set), 'split'] = 'train'
-    manifest.loc[manifest['included'] & manifest['patient_id'].isin(test_set), 'split'] = 'test'
-
     manifest.to_csv(output_path / 'dataset_v1_raw_manifest.csv', index=False)
     manifest.loc[~manifest['included']].to_csv(
         output_path / 'dataset_v1_raw_dropped_ids.csv', index=False
     )
 
+    fold_sizes = [
+        {'fold': f['fold'], 'train': len(f['X_train']), 'test': len(f['X_test'])}
+        for f in folds
+    ]
     summary = {
         'total_records': int(len(metadata)),
         'excluded_records': int((~keep_mask).sum()),
         'retained_records': int(keep_mask.sum()),
-        'train_records': int(len(X_train)),
-        'test_records': int(len(X_test)),
+        'n_splits': n_splits,
+        'fold_sizes': fold_sizes,
         'class_counts_after_exclusion': {
             str(k): int(v) for k, v in class_counts.to_dict().items()
         },
@@ -142,7 +143,7 @@ def run_raw_baseline_pipeline(
     print("Method 1 complete. Saved dataset_v1_raw.npy and audit artifacts.")
     print(f"Retained records: {summary['retained_records']} | Excluded: {summary['excluded_records']}")
 
-    return X_train, X_test
+    return folds
 
 def apply_clinical_filters(signal, fs=100):
     """
@@ -162,54 +163,37 @@ def apply_clinical_filters(signal, fs=100):
     
     return filtered_signal
 
-def run_preprocessing_pipeline(all_signals, labels):
+def run_preprocessing_pipeline(all_signals, labels, n_splits=5, random_state=42):
     """
-    Handles Splitting, Filtering, and Scaling.
+    Method 2 (Standard Clinical Preprocessing):
+    - Bandpass filter 0.5-40 Hz + Notch 50 Hz
+    - StandardScaler per-lead, fit on train only per fold
+    - 5-Fold Stratified K-Fold Cross-Validation
+    - Save as dataset_v2_filtered.npy
     """
-    # 3. Holdout Split: 70% train / 30% test, stratified by class
-    X_train, X_test, y_train, y_test = train_test_split(
-        all_signals, 
-        labels, 
-        test_size=0.30, 
-        random_state=42, 
-        stratify=labels
-    )
+    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    folds = []
 
-    # 4. Apply Filters to all splits
-    # We apply filters individually to each 12-lead recording
-    X_train_filt = np.array([apply_clinical_filters(record) for record in X_train])
-    X_test_filt = np.array([apply_clinical_filters(record) for record in X_test])
+    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(all_signals, labels)):
+        X_train_filt = np.array([apply_clinical_filters(all_signals[i]) for i in train_idx])
+        X_test_filt  = np.array([apply_clinical_filters(all_signals[i]) for i in test_idx])
 
-    # 5. Feature Scaling: StandardScaler applied per-lead
-    # StandardScaler expects (n_samples, n_features). 
-    # We treat each (timestep x lead) as a feature or flatten.
-    # Standard practice: Scale across all timesteps for each lead.
-    
-    scaler = StandardScaler()
-    
-    # Reshape to (N * 1200, 12) to fit scaler on lead-columns
-    N_train, T, L = X_train_filt.shape
-    N_test = X_test_filt.shape[0]
-    
-    X_train_reshaped = X_train_filt.reshape(-1, L)
-    X_test_reshaped = X_test_filt.reshape(-1, L)
+        N_train, T, L = X_train_filt.shape
+        N_test = X_test_filt.shape[0]
 
-    # Fit ON TRAIN ONLY, transform on both
-    X_train_scaled = scaler.fit_transform(X_train_reshaped)
-    X_test_scaled = scaler.transform(X_test_reshaped)
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train_filt.reshape(-1, L)).reshape(N_train, T, L)
+        X_test_scaled  = scaler.transform(X_test_filt.reshape(-1, L)).reshape(N_test, T, L)
 
-    # Reshape back to original 3D format (N, 1200, 12)
-    X_train_final = X_train_scaled.reshape(N_train, T, L)
-    X_test_final = X_test_scaled.reshape(N_test, T, L)
+        folds.append({
+            'fold': fold_idx,
+            'X_train': X_train_scaled,
+            'X_test': X_test_scaled,
+            'y_train': labels[train_idx],
+            'y_test': labels[test_idx],
+        })
 
-    # 6. Save as dataset_v2_filtered.npy
-    output_data = {
-        'X_train': X_train_final,
-        'X_test': X_test_final,
-        'y_train': y_train,
-        'y_test': y_test
-    }
-    np.save('data_preprocessing/dataset_v2_filtered.npy', output_data)
-    print("Preprocessing complete. File saved as dataset_v2_filtered.npy")
+    np.save('data_preprocessing/dataset_v2_filtered.npy', {'folds': folds, 'n_splits': n_splits})
+    print("Method 2 complete. Saved dataset_v2_filtered.npy")
 
-    return X_train_final, X_test_final
+    return folds
