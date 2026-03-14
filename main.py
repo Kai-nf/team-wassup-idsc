@@ -25,7 +25,13 @@ def main():
     print(f"Raw baseline: {len(folds_v1)} folds | fold 0 -> train: {len(folds_v1[0]['X_train'])}, test: {len(folds_v1[0]['X_test'])}")
 
     print("\n--- Phase 2: Method 2 (Clinical Filtered) ---")
-    folds_v2 = run_preprocessing_pipeline(all_signals, labels)
+    folds_v2 = run_preprocessing_pipeline(
+        all_signals,
+        labels,
+        metadata_csv_path=CSV_PATH,
+        dropped_csv_path='data_preprocessing/dataset_v1_raw_dropped_ids.csv',
+        manifest_csv_path='data_preprocessing/dataset_v1_raw_manifest.csv',
+    )
     print("'dataset_v2_filtered.npy' has been created.")
     print(f"Clinical filtered: {len(folds_v2)} folds | fold 0 -> train: {len(folds_v2[0]['X_train'])}, test: {len(folds_v2[0]['X_test'])}")
 
