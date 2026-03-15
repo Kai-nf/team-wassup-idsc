@@ -46,6 +46,46 @@ Based on the `brugada` field in metadata:
 - **sudden_death**: Critical outcome variable for risk assessment
 - **brugada**: Primary diagnostic label
 
+## Derived Preprocessing Datasets
+
+The project currently maintains standardized Phase 2 outputs for Method 1 and Method 2 in two experiment arms.
+
+### Arm definitions
+
+1. `drop14`: Exclude 14 Phase 1 signal-quality flagged recordings
+2. `keepall`: Keep all recordings
+
+### Method 1 outputs (raw baseline)
+
+1. [data_preprocessing/dataset_v1_raw_drop14.npy](data_preprocessing/dataset_v1_raw_drop14.npy)
+2. [data_preprocessing/dataset_v1_raw_keepall.npy](data_preprocessing/dataset_v1_raw_keepall.npy)
+
+Method 1 audit artifacts:
+
+1. [data_preprocessing/dataset_v1_raw_drop14_manifest.csv](data_preprocessing/dataset_v1_raw_drop14_manifest.csv)
+2. [data_preprocessing/dataset_v1_raw_drop14_dropped_ids.csv](data_preprocessing/dataset_v1_raw_drop14_dropped_ids.csv)
+3. [data_preprocessing/dataset_v1_raw_drop14_summary.json](data_preprocessing/dataset_v1_raw_drop14_summary.json)
+4. [data_preprocessing/dataset_v1_raw_keepall_manifest.csv](data_preprocessing/dataset_v1_raw_keepall_manifest.csv)
+5. [data_preprocessing/dataset_v1_raw_keepall_dropped_ids.csv](data_preprocessing/dataset_v1_raw_keepall_dropped_ids.csv)
+6. [data_preprocessing/dataset_v1_raw_keepall_summary.json](data_preprocessing/dataset_v1_raw_keepall_summary.json)
+
+### Method 2 outputs (clinical filtering)
+
+1. [data_preprocessing/dataset_v2_filtered_drop14.npy](data_preprocessing/dataset_v2_filtered_drop14.npy)
+2. [data_preprocessing/dataset_v2_filtered_keepall.npy](data_preprocessing/dataset_v2_filtered_keepall.npy)
+
+Method 2 processing steps:
+
+1. Bandpass filter: 0.5-40 Hz
+2. Notch filter: 50 Hz
+3. Per-lead standardization using train-fold fit only
+
+### Cross-validation protocol
+
+1. 5-fold stratified cross-validation
+2. Method 2 reuses Method 1 fold assignments within each arm
+3. Method 1 and Method 2 therefore have matched test IDs fold-by-fold for fair comparison
+
 ## Loading the Dataset
 
 ### Reading Metadata

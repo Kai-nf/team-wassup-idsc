@@ -19,13 +19,15 @@ def run_raw_baseline_pipeline(
     metadata_csv_path='metadata.csv',
     flagged_csv_path='data_preprocessing/flagged_recordings_phase1.csv',
     output_dir='data_preprocessing',
+    arm_name='drop14',
+    drop_flagged_in_phase1=True,
     n_splits=5,
     random_state=42,
 ):
     """
     Method 1 (Raw Baseline):
     - Keep raw signals (no filtering)
-    - Drop recordings flagged during Phase 1 EDA
+    - Optional drop of recordings flagged during Phase 1 EDA
     - 5-Fold Stratified K-Fold Cross-Validation
     - Save dataset and audit artifacts
     """
@@ -45,10 +47,17 @@ def run_raw_baseline_pipeline(
     flagged_file = Path(flagged_csv_path)
     if flagged_file.exists() and flagged_file.stat().st_size > 0:
         flagged_df = pd.read_csv(flagged_file)
-        if 'patient_id' in flagged_df.columns:
-            flagged_ids = set(flagged_df['patient_id'].dropna().astype(str).tolist())
+        pid_col = next(
+            (col for col in flagged_df.columns if 'patient_id' in str(col).strip().lower()),
+            None,
+        )
+        if pid_col is not None:
+            flagged_ids = set(flagged_df[pid_col].dropna().astype(str).tolist())
 
     flagged_mask = metadata_ids.isin(flagged_ids)
+    if not drop_flagged_in_phase1:
+        flagged_mask = pd.Series(False, index=metadata.index)
+
     finite_mask = np.isfinite(all_signals).all(axis=(1, 2))
     missing_label_mask = labels_series.isna().to_numpy()
 
@@ -92,13 +101,14 @@ def run_raw_baseline_pipeline(
         'folds': folds,
         'n_splits': n_splits,
         'random_state': random_state,
+        'arm_name': arm_name,
         'exclusion_policy': [
             'flagged_in_phase1',
             'non_finite_signal',
             'missing_label',
         ],
     }
-    np.save(output_path / 'dataset_v1_raw.npy', dataset_v1)
+    np.save(output_path / f'dataset_v1_raw_{arm_name}.npy', dataset_v1)
 
     test_fold_col = pd.Series(-1, index=metadata.index, dtype=int)
     for i, orig_idx in enumerate(clean_original_indices):
@@ -113,9 +123,9 @@ def run_raw_baseline_pipeline(
             'test_fold': test_fold_col,
         }
     )
-    manifest.to_csv(output_path / 'dataset_v1_raw_manifest.csv', index=False)
+    manifest.to_csv(output_path / f'dataset_v1_raw_{arm_name}_manifest.csv', index=False)
     manifest.loc[~manifest['included']].to_csv(
-        output_path / 'dataset_v1_raw_dropped_ids.csv', index=False
+        output_path / f'dataset_v1_raw_{arm_name}_dropped_ids.csv', index=False
     )
 
     fold_sizes = [
@@ -126,6 +136,7 @@ def run_raw_baseline_pipeline(
         'total_records': int(len(metadata)),
         'excluded_records': int((~keep_mask).sum()),
         'retained_records': int(keep_mask.sum()),
+        'arm_name': arm_name,
         'n_splits': n_splits,
         'fold_sizes': fold_sizes,
         'class_counts_after_exclusion': {
@@ -137,10 +148,10 @@ def run_raw_baseline_pipeline(
             'missing_label': int(missing_label_mask.sum()),
         },
     }
-    with open(output_path / 'dataset_v1_raw_summary.json', 'w', encoding='utf-8') as f:
+    with open(output_path / f'dataset_v1_raw_{arm_name}_summary.json', 'w', encoding='utf-8') as f:
         json.dump(summary, f, indent=2)
 
-    print("Method 1 complete. Saved dataset_v1_raw.npy and audit artifacts.")
+    print(f"Method 1 ({arm_name}) complete. Saved dataset_v1_raw_{arm_name}.npy and audit artifacts.")
     print(f"Retained records: {summary['retained_records']} | Excluded: {summary['excluded_records']}")
 
     return folds
@@ -167,9 +178,10 @@ def run_preprocessing_pipeline(
     all_signals,
     labels,
     metadata_csv_path='metadata.csv',
-    dropped_csv_path='data_preprocessing/dataset_v1_raw_dropped_ids.csv',
-    manifest_csv_path='data_preprocessing/dataset_v1_raw_manifest.csv',
+    dropped_csv_path='data_preprocessing/dataset_v1_raw_drop14_dropped_ids.csv',
+    manifest_csv_path='data_preprocessing/dataset_v1_raw_drop14_manifest.csv',
     output_dir='data_preprocessing',
+    arm_name='drop14',
     n_splits=5,
     random_state=42,
 ):
@@ -179,7 +191,7 @@ def run_preprocessing_pipeline(
     - StandardScaler per-lead, fit on train only per fold
     - Uses Method 1 dropped IDs for standardized cohort
     - Reuses Method 1 fold assignments when manifest is available
-    - Save as dataset_v2_filtered.npy
+    - Save as arm-specific dataset_v2_filtered_{arm}.npy
     """
     metadata = pd.read_csv(metadata_csv_path)
     output_path = Path(output_dir)
@@ -197,8 +209,12 @@ def run_preprocessing_pipeline(
     dropped_file = Path(dropped_csv_path)
     if dropped_file.exists() and dropped_file.stat().st_size > 0:
         dropped_df = pd.read_csv(dropped_file)
-        if 'patient_id' in dropped_df.columns:
-            dropped_ids = set(dropped_df['patient_id'].dropna().astype(str).tolist())
+        pid_col = next(
+            (col for col in dropped_df.columns if 'patient_id' in str(col).strip().lower()),
+            None,
+        )
+        if pid_col is not None:
+            dropped_ids = set(dropped_df[pid_col].dropna().astype(str).tolist())
 
     keep_mask = ~metadata_ids.isin(dropped_ids).to_numpy()
     if keep_mask.sum() == 0:
@@ -266,17 +282,18 @@ def run_preprocessing_pipeline(
         })
 
     np.save(
-        output_path / 'dataset_v2_filtered.npy',
+        output_path / f'dataset_v2_filtered_{arm_name}.npy',
         {
             'folds': folds,
             'n_splits': n_splits,
+            'arm_name': arm_name,
             'retained_records': int(keep_mask.sum()),
             'excluded_records': int((~keep_mask).sum()),
             'fold_source': fold_source,
             'random_state': random_state,
         },
     )
-    print("Method 2 complete. Saved dataset_v2_filtered.npy")
+    print(f"Method 2 ({arm_name}) complete. Saved dataset_v2_filtered_{arm_name}.npy")
     print(
         f"Method 2 cohort: retained {int(keep_mask.sum())} | excluded {int((~keep_mask).sum())}"
         f" | folds from {fold_source}"

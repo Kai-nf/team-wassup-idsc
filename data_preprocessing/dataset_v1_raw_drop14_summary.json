@@ -2,6 +2,7 @@
   "total_records": 363,
   "excluded_records": 14,
   "retained_records": 349,
+  "arm_name": "drop14",
   "n_splits": 5,
   "fold_sizes": [
     {
