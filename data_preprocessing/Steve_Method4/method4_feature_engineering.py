@@ -275,7 +275,7 @@ def build_method4_feature_dataset(
     print(f"Loaded {n_patients} patients.  Signal shape: {all_signals.shape}")
 
     # ---- Load flagged IDs ----
-    flagged_csv = Path("data_preprocessing/flagged_recordings_phase1.csv")
+    flagged_csv = PROJECT_ROOT / "data_preprocessing" / "flagged_recordings_phase1.csv"
     flagged_ids = set()
     if flagged_csv.exists() and flagged_csv.stat().st_size > 0:
         fdf = pd.read_csv(flagged_csv)
