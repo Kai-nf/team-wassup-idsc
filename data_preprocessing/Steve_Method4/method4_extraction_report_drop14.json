@@ -1,6 +1,6 @@
 {
   "arm_name": "drop14",
-  "total_patients": 363,
+  "total_patients": 349,
   "n_features": 19,
   "nan_counts_before_imputation": {
     "st_elevation_v1": 1,
@@ -24,50 +24,50 @@
     "heart_rate": 0
   },
   "median_fill_values": {
-    "st_elevation_v1": 0.03196682071256603,
-    "st_elevation_v2": 0.12800799488086395,
+    "st_elevation_v1": 0.03056587079328516,
+    "st_elevation_v2": 0.12726169904507956,
     "st_elevation_v3": 0.10450963828118681,
-    "qrs_duration_v1": 197.69230769230768,
-    "qrs_duration_v2": 126.27450980392157,
-    "qrs_duration_v3": 108.57142857142857,
-    "rj_interval_v1": 42.5,
-    "p_wave_duration_ii": 87.6923076923077,
+    "qrs_duration_v1": 200.71428571428572,
+    "qrs_duration_v2": 125.88235294117646,
+    "qrs_duration_v3": 109.0,
+    "rj_interval_v1": 43.17307692307692,
+    "p_wave_duration_ii": 88.125,
     "p_wave_duration_v1": 60.0,
-    "p_wave_amplitude_ii": 0.061074399304973916,
+    "p_wave_amplitude_ii": 0.061451655830755826,
     "p_wave_amplitude_v1": 0.0372603367323263,
-    "t_wave_amplitude_v1": 0.1066413492949861,
-    "t_wave_amplitude_v2": 0.29483586257462396,
-    "t_wave_amplitude_v3": 0.40405980382728934,
-    "t_wave_symmetry_v2": 0.9360119047619048,
-    "st_t_ratio_v2": 0.426481785793176,
-    "rr_mean_ii": 863.3333333333334,
-    "rr_std_ii": 27.568097504180443,
-    "heart_rate": 69.4980694980695
+    "t_wave_amplitude_v1": 0.10688500026349616,
+    "t_wave_amplitude_v2": 0.2954262342584374,
+    "t_wave_amplitude_v3": 0.4047618574689922,
+    "t_wave_symmetry_v2": 0.937702922077922,
+    "st_t_ratio_v2": 0.4197320358291852,
+    "rr_mean_ii": 861.5384615384615,
+    "rr_std_ii": 27.988092706244444,
+    "heart_rate": 69.64285714285714
   },
   "class_distribution": {
-    "positive": 76,
-    "negative": 287
+    "positive": 72,
+    "negative": 277
   },
   "fold_sizes": {
     "0": {
-      "train": 290,
-      "test": 73
+      "train": 279,
+      "test": 70
     },
     "1": {
-      "train": 290,
-      "test": 73
+      "train": 279,
+      "test": 70
     },
     "2": {
-      "train": 290,
-      "test": 73
+      "train": 279,
+      "test": 70
     },
     "3": {
-      "train": 291,
-      "test": 72
+      "train": 279,
+      "test": 70
     },
     "4": {
-      "train": 291,
-      "test": 72
+      "train": 280,
+      "test": 69
     }
   }
 }

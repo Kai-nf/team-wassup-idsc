@@ -274,14 +274,13 @@ def build_method4_feature_dataset(
     n_patients = len(metadata)
     print(f"Loaded {n_patients} patients.  Signal shape: {all_signals.shape}")
 
-    # ---- Load flagged IDs ----
-    flagged_csv = PROJECT_ROOT / "data_preprocessing" / "flagged_recordings_phase1.csv"
-    flagged_ids = set()
-    if flagged_csv.exists() and flagged_csv.stat().st_size > 0:
-        fdf = pd.read_csv(flagged_csv)
-        pid_col = next((c for c in fdf.columns if "patient_id" in c.lower()), None)
-        if pid_col:
-            flagged_ids = set(fdf[pid_col].dropna().astype(int).tolist())
+    # ----     # ---- Flagged IDs (14 signal-quality flagged from Phase 1) ----
+    # Source: data_preprocessing/dataset_v1_raw_drop14_dropped_ids.csv
+    FLAGGED_PATIENT_IDS = {
+        267630, 287355, 519139, 801261, 930107, 999474, 1088175,
+        1141322, 1142915, 1180702, 1230482, 1275329, 1313974, 3058024,
+    }
+    flagged_ids = FLAGGED_PATIENT_IDS
     print(f"Flagged IDs: {len(flagged_ids)}")
 
     # ---- Filter all signals ----
