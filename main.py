@@ -1,8 +1,6 @@
 from data_loader import load_raw_dataset
-from data_preprocessing.standard_clinical_preprocessing import (
-    run_preprocessing_pipeline,
-    run_raw_baseline_pipeline,
-)
+from data_preprocessing.method2 import run_preprocessing_pipeline
+from felicia.data_preprocessing_method1.method1 import run_raw_baseline_pipeline
 
 # 1. Configuration
 CSV_PATH = 'metadata.csv'
@@ -26,7 +24,8 @@ def main():
             all_signals,
             labels,
             metadata_csv_path=CSV_PATH,
-            flagged_csv_path='data_preprocessing/flagged_recordings_phase1.csv',
+            flagged_csv_path='flagged_recordings_phase1.csv',
+            output_dir='felicia/data_preprocessing_method1',
             arm_name=arm_name,
             drop_flagged_in_phase1=arm['drop_flagged_in_phase1'],
         )
@@ -41,8 +40,8 @@ def main():
             all_signals,
             labels,
             metadata_csv_path=CSV_PATH,
-            dropped_csv_path=f'data_preprocessing/dataset_v1_raw_{arm_name}_dropped_ids.csv',
-            manifest_csv_path=f'data_preprocessing/dataset_v1_raw_{arm_name}_manifest.csv',
+            dropped_csv_path=f'felicia/data_preprocessing_method1/dataset_v1_raw_{arm_name}_dropped_ids.csv',
+            manifest_csv_path=f'felicia/data_preprocessing_method1/dataset_v1_raw_{arm_name}_manifest.csv',
             arm_name=arm_name,
         )
         print(f"'dataset_v2_filtered_{arm_name}.npy' has been created.")
