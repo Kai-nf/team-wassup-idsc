@@ -1,0 +1,73 @@
+{
+  "arm_name": "keepall",
+  "total_patients": 363,
+  "n_features": 19,
+  "nan_counts_before_imputation": {
+    "st_elevation_v1": 1,
+    "st_elevation_v2": 1,
+    "st_elevation_v3": 0,
+    "qrs_duration_v1": 4,
+    "qrs_duration_v2": 13,
+    "qrs_duration_v3": 14,
+    "rj_interval_v1": 1,
+    "p_wave_duration_ii": 18,
+    "p_wave_duration_v1": 27,
+    "p_wave_amplitude_ii": 0,
+    "p_wave_amplitude_v1": 0,
+    "t_wave_amplitude_v1": 20,
+    "t_wave_amplitude_v2": 2,
+    "t_wave_amplitude_v3": 0,
+    "t_wave_symmetry_v2": 16,
+    "st_t_ratio_v2": 3,
+    "rr_mean_ii": 0,
+    "rr_std_ii": 0,
+    "heart_rate": 0
+  },
+  "median_fill_values": {
+    "st_elevation_v1": 0.03196682071256603,
+    "st_elevation_v2": 0.12800799488086395,
+    "st_elevation_v3": 0.10450963828118681,
+    "qrs_duration_v1": 197.69230769230768,
+    "qrs_duration_v2": 126.27450980392157,
+    "qrs_duration_v3": 108.57142857142857,
+    "rj_interval_v1": 42.5,
+    "p_wave_duration_ii": 87.6923076923077,
+    "p_wave_duration_v1": 60.0,
+    "p_wave_amplitude_ii": 0.061074399304973916,
+    "p_wave_amplitude_v1": 0.0372603367323263,
+    "t_wave_amplitude_v1": 0.1066413492949861,
+    "t_wave_amplitude_v2": 0.29483586257462396,
+    "t_wave_amplitude_v3": 0.40405980382728934,
+    "t_wave_symmetry_v2": 0.9360119047619048,
+    "st_t_ratio_v2": 0.426481785793176,
+    "rr_mean_ii": 863.3333333333334,
+    "rr_std_ii": 27.568097504180443,
+    "heart_rate": 69.4980694980695
+  },
+  "class_distribution": {
+    "positive": 76,
+    "negative": 287
+  },
+  "fold_sizes": {
+    "0": {
+      "train": 290,
+      "test": 73
+    },
+    "1": {
+      "train": 290,
+      "test": 73
+    },
+    "2": {
+      "train": 290,
+      "test": 73
+    },
+    "3": {
+      "train": 291,
+      "test": 72
+    },
+    "4": {
+      "train": 291,
+      "test": 72
+    }
+  }
+}
