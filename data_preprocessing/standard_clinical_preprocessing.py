@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import json
 from scipy.signal import butter, filtfilt, iirnotch
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
 
 
@@ -11,6 +11,12 @@ def _append_reason(existing, reason):
     if not existing:
         return reason
     return f"{existing};{reason}"
+
+
+def _binarize_brugada_labels(labels):
+    # Match Method 3 labeling: positive if brugada > 0, otherwise negative.
+    labels_numeric = pd.to_numeric(pd.Series(labels), errors='coerce')
+    return (labels_numeric.fillna(0) > 0).astype(int)
 
 
 def run_raw_baseline_pipeline(
@@ -27,8 +33,9 @@ def run_raw_baseline_pipeline(
     """
     Method 1 (Raw Baseline):
     - Keep raw signals (no filtering)
+    - Binarize labels as 1 if brugada > 0 else 0 (matches Method 3)
     - Optional drop of recordings flagged during Phase 1 EDA
-    - 5-Fold Stratified K-Fold Cross-Validation
+    - 5-Fold Stratified Group K-Fold Cross-Validation (grouped by patient_id)
     - Save dataset and audit artifacts
     """
     metadata = pd.read_csv(metadata_csv_path)
@@ -41,7 +48,7 @@ def run_raw_baseline_pipeline(
         )
 
     metadata_ids = metadata['patient_id'].astype(str)
-    labels_series = pd.Series(labels)
+    labels_series = _binarize_brugada_labels(labels)
 
     flagged_ids = set()
     flagged_file = Path(flagged_csv_path)
@@ -59,18 +66,13 @@ def run_raw_baseline_pipeline(
         flagged_mask = pd.Series(False, index=metadata.index)
 
     finite_mask = np.isfinite(all_signals).all(axis=(1, 2))
-    missing_label_mask = labels_series.isna().to_numpy()
-
-    keep_mask = (~flagged_mask.to_numpy()) & finite_mask & (~missing_label_mask)
+    keep_mask = (~flagged_mask.to_numpy()) & finite_mask
 
     dropped_reason = pd.Series('', index=metadata.index, dtype='string')
     for idx in metadata.index[flagged_mask]:
         dropped_reason.iloc[idx] = _append_reason(dropped_reason.iloc[idx], 'flagged_in_phase1')
     for idx in metadata.index[~finite_mask]:
         dropped_reason.iloc[idx] = _append_reason(dropped_reason.iloc[idx], 'non_finite_signal')
-    for idx in metadata.index[missing_label_mask]:
-        dropped_reason.iloc[idx] = _append_reason(dropped_reason.iloc[idx], 'missing_label')
-
     X_clean = all_signals[keep_mask]
     y_clean = labels_series.to_numpy()[keep_mask]
     ids_clean = metadata_ids.to_numpy()[keep_mask]
@@ -80,12 +82,15 @@ def run_raw_baseline_pipeline(
 
     class_counts = pd.Series(y_clean).value_counts().sort_index()
 
-    skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    groups_clean = ids_clean
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     folds = []
     clean_original_indices = np.where(keep_mask)[0]
     test_fold_assignments = np.full(len(X_clean), -1, dtype=int)
 
-    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(X_clean, y_clean)):
+    for fold_idx, (train_idx, test_idx) in enumerate(
+        sgkf.split(X_clean, y_clean, groups=groups_clean)
+    ):
         folds.append({
             'fold': fold_idx,
             'X_train': X_clean[train_idx],
@@ -105,7 +110,6 @@ def run_raw_baseline_pipeline(
         'exclusion_policy': [
             'flagged_in_phase1',
             'non_finite_signal',
-            'missing_label',
         ],
     }
     np.save(output_path / f'dataset_v1_raw_{arm_name}.npy', dataset_v1)
@@ -145,7 +149,6 @@ def run_raw_baseline_pipeline(
         'excluded_by_reason': {
             'flagged_in_phase1': int(flagged_mask.sum()),
             'non_finite_signal': int((~finite_mask).sum()),
-            'missing_label': int(missing_label_mask.sum()),
         },
     }
     with open(output_path / f'dataset_v1_raw_{arm_name}_summary.json', 'w', encoding='utf-8') as f:
@@ -189,15 +192,17 @@ def run_preprocessing_pipeline(
     Method 2 (Standard Clinical Preprocessing):
     - Bandpass filter 0.5-40 Hz + Notch 50 Hz
     - StandardScaler per-lead, fit on train only per fold
+    - Binarize labels as 1 if brugada > 0 else 0 (matches Method 3)
     - Uses Method 1 dropped IDs for standardized cohort
     - Reuses Method 1 fold assignments when manifest is available
+    - Fallback split uses StratifiedGroupKFold grouped by patient_id
     - Save as arm-specific dataset_v2_filtered_{arm}.npy
     """
     metadata = pd.read_csv(metadata_csv_path)
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
-    labels_arr = np.asarray(labels)
+    labels_arr = _binarize_brugada_labels(labels).to_numpy()
     if len(metadata) != len(all_signals) or len(labels_arr) != len(all_signals):
         raise ValueError(
             "Input length mismatch: metadata, labels, and signals must align by row order."
@@ -226,7 +231,7 @@ def run_preprocessing_pipeline(
     clean_original_indices = np.where(keep_mask)[0]
 
     fold_indices = []
-    fold_source = 'stratified_kfold'
+    fold_source = 'stratified_group_kfold'
     manifest_file = Path(manifest_csv_path)
     if manifest_file.exists() and manifest_file.stat().st_size > 0:
         manifest_df = pd.read_csv(manifest_file)
@@ -255,8 +260,8 @@ def run_preprocessing_pipeline(
                 fold_indices = []
 
     if not fold_indices:
-        skf = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-        fold_indices = list(skf.split(X_clean, y_clean))
+        sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+        fold_indices = list(sgkf.split(X_clean, y_clean, groups=ids_clean))
 
     folds = []
 
