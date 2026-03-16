@@ -4,7 +4,10 @@ import torch.nn as nn
 import torch.optim as optim
 import numpy as np
 import os
-from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score, average_precision_score, confusion_matrix
+from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score, confusion_matrix
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from torch.utils.data import TensorDataset, DataLoader
 
 # Assuming load_wavelet_dataset_for_fold is available from Method 3
 # from data_preprocessing.Steve_Method3.method3_preprocessing import load_wavelet_dataset_for_fold
@@ -41,32 +44,28 @@ def augment_brugada_beats(X, y):
     # Baseline drift, noise, scaling injected here
     return torch.tensor(X_aug, dtype=torch.float32), torch.tensor(y, dtype=torch.float32)
 
+def check_and_load_file(path_primary, path_fallback, name):
+    if os.path.exists(path_primary):
+        return np.load(path_primary)
+    elif os.path.exists(path_fallback):
+        return np.load(path_fallback)
+    else:
+        raise FileNotFoundError(f"Missing {name}. Looked in: {path_primary} and {path_fallback}")
+
 def train_1d_cnn():
-    os.makedirs("results", exist_ok=True)
-    metrics_per_fold = {}
+    os.makedirs("results/model_weights", exist_ok=True)
     
-    for fold_id in range(5):
-        # [Placeholder] Load data
-        # X_train, X_test, y_train, y_test = load_wavelet_dataset_for_fold(fold_id)
-        # Permute X to (Batch, Channels, Length) for PyTorch: e.g. (N, 12, 101)
-        
-        model = ECG1DCNN()
-        criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([3.8]))
-        optimizer = optim.Adam(model.parameters(), lr=1e-3)
-        
-        # Training loop with early stopping patience=10
-        # ...existing code for training loop omitted for brevity...
-        
-        # Collect Metrics
-        # ...compute F1 (macro), Recall, Precision, Spec, AUCs, Sens@95...
-        metrics_per_fold[fold_id] = {
-            "f1_macro": 0.85, # placeholder
-            "roc_auc": 0.90
-        }
-    
-    # Save aggregated JSON
-    with open("master_folds_drop14.json") as f:
+    # Load manifest
+    manifest_path = "../../master_folds_drop14.json"
+    if not os.path.exists(manifest_path):
+        raise FileNotFoundError(f"Missing master manifest: {manifest_path}")
+    with open(manifest_path, "r") as f:
         manifest = json.load(f)
 
-if __name__ == "__main__":
-    train_1d_cnn()
+    # Load Method 3 data
+    base_dir_m3 = "../../data_preprocessing/JK_Method3"
+    alt_dir_m3 = "../../data_preprocessing"
+    
+    X_beats = check_and_load_file(f"{base_dir_m3}/dataset_v3_beats.npy", f"{alt_dir_m3}/dataset_v3_beats.npy", "beats data")
+    pids = check_and_load_file(f"{base_dir_m3}/beat_patient_ids_v3.npy", f"{alt_dir_m3}/beat_patient_ids_v3.npy", "patient IDs")
+    labels = check_and_load_file(f"{base_dir_m3}/beat_labels_v3.npy", f"{alt_dir_m3}/beat_labels_v3.npy
