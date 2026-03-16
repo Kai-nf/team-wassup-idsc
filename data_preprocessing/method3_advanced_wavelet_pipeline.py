@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import json
 import os
 from pathlib import Path
@@ -23,7 +27,6 @@ R_PEAK_MERGE_TOL = int(0.2 * FS)  # +/- 0.2s -> +/- 20 samples
 
 
 # Hard-coded list of noisy leads discovered during Phase 1
-# Keys are patient IDs (as strings), values are lists of lead names.
 NOISY_LEADS_BY_PATIENT: Dict[str, List[str]] = {
     "267630": ["I"],
     "287355": ["aVL"],
@@ -767,68 +770,26 @@ def load_wavelet_dataset_for_fold(
 
 if __name__ == "__main__":
     """
-    Example usage:
-
-    1. Build the dataset (run once):
-
-       python -m data_preprocessing.method3_advanced_wavelet_pipeline \\
-           --records_dir "path/to/wfdb_records" \\
-           --metadata_csv "metadata.csv"
-
-    2. In your training script, load a specific fold:
-
-       from data_preprocessing.method3_advanced_wavelet_pipeline import (
-           load_wavelet_dataset_for_fold,
-       )
-
-       X_train, X_test, y_train, y_test = load_wavelet_dataset_for_fold(fold_id=0)
+    Running the pipeline with hardcoded paths. 
+    You can simply click 'Run' in your IDE now!
     """
-    import argparse
+    
+    # --- HARDCODED VARIABLES ---
+    # Make sure these match the actual folder and file names in your root directory
+    METADATA_CSV = "metadata.csv"
+    DATA_DIR = "files" 
+    OUTPUT_DIR = "data_preprocessing"
+    N_SPLITS = 5
+    RANDOM_STATE = 42
 
-    parser = argparse.ArgumentParser(
-        description=(
-            "Method 3: Advanced ECG signal processing with wavelet denoising.\n"
-            "This entrypoint uses `data_loader.load_raw_dataset` to read WFDB records."
-        )
-    )
-    parser.add_argument(
-        "--data_dir",
-        type=str,
-        required=True,
-        help="Root directory with per-patient WFDB folders (as used by data_loader).",
-    )
-    parser.add_argument(
-        "--metadata_csv",
-        type=str,
-        default="metadata.csv",
-        help="Path to metadata CSV with `patient_id` and `brugada` columns.",
-    )
-    parser.add_argument(
-        "--output_dir",
-        type=str,
-        default="data_preprocessing",
-        help="Directory to store dataset_v3_wavelet.npy and fold_composition_v3.json.",
-    )
-    parser.add_argument(
-        "--n_splits",
-        type=int,
-        default=5,
-        help="Number of StratifiedGroupKFold splits.",
-    )
-    parser.add_argument(
-        "--random_state",
-        type=int,
-        default=42,
-        help="Random seed for reproducible folding.",
-    )
-
-    args = parser.parse_args()
+    print("Starting Method 3 Pipeline with hardcoded variables...")
+    print(f"Looking for ECG records in: {DATA_DIR}")
+    print(f"Looking for metadata in: {METADATA_CSV}")
 
     build_method3_wavelet_dataset_from_loader(
-        metadata_csv_path=args.metadata_csv,
-        data_dir=args.data_dir,
-        output_dir=args.output_dir,
-        n_splits=args.n_splits,
-        random_state=args.random_state,
+        metadata_csv_path=METADATA_CSV,
+        data_dir=DATA_DIR,
+        output_dir=OUTPUT_DIR,
+        n_splits=N_SPLITS,
+        random_state=RANDOM_STATE,
     )
-
