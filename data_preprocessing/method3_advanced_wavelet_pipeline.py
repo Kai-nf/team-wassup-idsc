@@ -15,7 +15,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
 from wfdb import processing as wfproc
 
-from data_loader import load_raw_dataset
+from environment_setup.data_loader import load_raw_dataset
 
 
 FS = 100  # Hz, sampling frequency
