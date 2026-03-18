@@ -4,6 +4,7 @@ from pathlib import Path
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score
 from xgboost import XGBClassifier
+from imblearn.over_sampling import ADASYN
 
 def main():
     REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -48,15 +49,23 @@ def main():
         scaler = StandardScaler()
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
+
+        # --- Inject ADASYN for Tree-Based Density Learning ---
+        # ADASYN handles the class imbalance physically, so we drop scale_pos_weight
+        adasyn = ADASYN(random_state=42)
+        X_train_resampled, y_train_resampled = adasyn.fit_resample(X_train_scaled, y_train)
+
+        # --- Tuned XGBoost for Small Tabular Data ---
+        model = XGBClassifier(
+            max_depth=3,              # Shallow trees prevent overfitting on N=349
+            learning_rate=0.05,       # Slower, more robust learning
+            subsample=0.8,            # Randomly sample 80% of data per tree
+            colsample_bytree=0.8,     # Randomly sample 80% of features per tree
+            random_state=42
+        )
         
-        # Calculate scale_pos_weight
-        num_negative = (y_train == 0).sum()
-        num_positive = (y_train == 1).sum()
-        scale_weight = num_negative / num_positive if num_positive > 0 else 1.0
-        
-        # Train XGBoost
-        model = XGBClassifier(scale_pos_weight=scale_weight, random_state=42)
-        model.fit(X_train_scaled, y_train)
+        # Train on the resampled data
+        model.fit(X_train_resampled, y_train_resampled)
         
         # Predict
         y_prob = model.predict_proba(X_test_scaled)[:, 1]
