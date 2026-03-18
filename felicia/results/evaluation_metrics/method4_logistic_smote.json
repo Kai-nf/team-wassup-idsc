@@ -1,0 +1,404 @@
+{
+  "fold_source": "master_folds_drop14.json",
+  "fold_source_sha256": "2e5937ec905c11d6514258decc7b4c401f20dce513a51215ab056667c0a14138",
+  "n_splits": 5,
+  "random_state": 42,
+  "seed": 42,
+  "cohort": "drop14",
+  "method": "method4",
+  "model": "logistic",
+  "resampler": "smote",
+  "positive_class": {
+    "label": 1,
+    "name": "Brugada"
+  },
+  "inner_cv": "StratifiedGroupKFold(n_splits=3)",
+  "resampler_in_pipeline": true,
+  "beat_rollup_rule": "n/a",
+  "fold_class_balance_confirmed": true,
+  "fold_test_positive_counts": [
+    15,
+    15,
+    14,
+    14,
+    14
+  ],
+  "fold_test_negative_counts": [
+    55,
+    55,
+    56,
+    56,
+    55
+  ],
+  "fold_results": [
+    {
+      "f1_macro": 0.7008547008547008,
+      "recall_macro": 0.7333333333333334,
+      "precision_macro": 0.6870748299319728,
+      "f1_brugada": 0.5555555555555556,
+      "precision_brugada": 0.47619047619047616,
+      "recall_brugada": 0.6666666666666666,
+      "specificity": 0.8,
+      "confusion_matrix": [
+        [
+          44,
+          11
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "roc_auc": 0.7769696969696971,
+      "pr_auc": 0.5035122351162289,
+      "sens_at_95spec": 0.4,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "n_positive": 15,
+      "n_negative": 55,
+      "n_positive_test": 15,
+      "n_negative_test": 55,
+      "fold": 0,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "smote",
+      "inner_cv_best_f1_macro": 0.7564132899536626,
+      "best_params": {
+        "C": 1.0,
+        "class_weight": "balanced",
+        "penalty": "l1",
+        "solver": "liblinear"
+      },
+      "train_class_balance_pre_augmentation": {
+        "0": 222,
+        "1": 57
+      },
+      "train_class_balance_post_augmentation": {
+        "0": 222,
+        "1": 57
+      },
+      "test_class_balance": {
+        "0": 55,
+        "1": 15
+      },
+      "scaler_stats": {
+        "feature_count": 19,
+        "mean_abs_mean": 132.08369123590103,
+        "mean_std": 180.14891250831803,
+        "min_std": 0.038098374151066414,
+        "max_std": 1390.4418069616065
+      },
+      "n_train_patients": 279,
+      "n_test_patients_manifest": 70,
+      "train_metadata_row_indices_count": 279,
+      "test_metadata_row_indices_count": 70
+    },
+    {
+      "f1_macro": 0.8784722222222222,
+      "recall_macro": 0.896969696969697,
+      "precision_macro": 0.8634850166481687,
+      "f1_brugada": 0.8125,
+      "precision_brugada": 0.7647058823529411,
+      "recall_brugada": 0.8666666666666667,
+      "specificity": 0.9272727272727272,
+      "confusion_matrix": [
+        [
+          51,
+          4
+        ],
+        [
+          2,
+          13
+        ]
+      ],
+      "roc_auc": 0.9103030303030303,
+      "pr_auc": 0.8055414818763902,
+      "sens_at_95spec": 0.6666666666666666,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "n_positive": 15,
+      "n_negative": 55,
+      "n_positive_test": 15,
+      "n_negative_test": 55,
+      "fold": 1,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "smote",
+      "inner_cv_best_f1_macro": 0.6872692701074853,
+      "best_params": {
+        "C": 10.0,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "liblinear"
+      },
+      "train_class_balance_pre_augmentation": {
+        "0": 222,
+        "1": 57
+      },
+      "train_class_balance_post_augmentation": {
+        "0": 222,
+        "1": 57
+      },
+      "test_class_balance": {
+        "0": 55,
+        "1": 15
+      },
+      "scaler_stats": {
+        "feature_count": 19,
+        "mean_abs_mean": 124.68500674912569,
+        "mean_std": 162.15887997960786,
+        "min_std": 0.03839283137801358,
+        "max_std": 1332.6018006902711
+      },
+      "n_train_patients": 279,
+      "n_test_patients_manifest": 70,
+      "train_metadata_row_indices_count": 279,
+      "test_metadata_row_indices_count": 70
+    },
+    {
+      "f1_macro": 0.7819314641744548,
+      "recall_macro": 0.8214285714285714,
+      "precision_macro": 0.760061919504644,
+      "f1_brugada": 0.6666666666666666,
+      "precision_brugada": 0.5789473684210527,
+      "recall_brugada": 0.7857142857142857,
+      "specificity": 0.8571428571428571,
+      "confusion_matrix": [
+        [
+          48,
+          8
+        ],
+        [
+          3,
+          11
+        ]
+      ],
+      "roc_auc": 0.8724489795918368,
+      "pr_auc": 0.6795413245755478,
+      "sens_at_95spec": 0.35714285714285715,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "n_positive": 14,
+      "n_negative": 56,
+      "n_positive_test": 14,
+      "n_negative_test": 56,
+      "fold": 2,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "smote",
+      "inner_cv_best_f1_macro": 0.6264177395585951,
+      "best_params": {
+        "C": 10.0,
+        "class_weight": "balanced",
+        "penalty": "l1",
+        "solver": "liblinear"
+      },
+      "train_class_balance_pre_augmentation": {
+        "0": 221,
+        "1": 58
+      },
+      "train_class_balance_post_augmentation": {
+        "0": 221,
+        "1": 58
+      },
+      "test_class_balance": {
+        "0": 56,
+        "1": 14
+      },
+      "scaler_stats": {
+        "feature_count": 19,
+        "mean_abs_mean": 127.11990877308726,
+        "mean_std": 170.21995492779467,
+        "min_std": 0.028763340725775917,
+        "max_std": 1209.5681885711879
+      },
+      "n_train_patients": 279,
+      "n_test_patients_manifest": 70,
+      "train_metadata_row_indices_count": 279,
+      "test_metadata_row_indices_count": 70
+    },
+    {
+      "f1_macro": 0.6233361653922401,
+      "recall_macro": 0.6428571428571428,
+      "precision_macro": 0.6155830753353974,
+      "f1_brugada": 0.42424242424242425,
+      "precision_brugada": 0.3684210526315789,
+      "recall_brugada": 0.5,
+      "specificity": 0.7857142857142857,
+      "confusion_matrix": [
+        [
+          44,
+          12
+        ],
+        [
+          7,
+          7
+        ]
+      ],
+      "roc_auc": 0.8010204081632653,
+      "pr_auc": 0.5749312068216995,
+      "sens_at_95spec": 0.35714285714285715,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "n_positive": 14,
+      "n_negative": 56,
+      "n_positive_test": 14,
+      "n_negative_test": 56,
+      "fold": 3,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "smote",
+      "inner_cv_best_f1_macro": 0.7142328699868054,
+      "best_params": {
+        "C": 0.1,
+        "class_weight": "balanced",
+        "penalty": "l1",
+        "solver": "saga"
+      },
+      "train_class_balance_pre_augmentation": {
+        "0": 221,
+        "1": 58
+      },
+      "train_class_balance_post_augmentation": {
+        "0": 221,
+        "1": 58
+      },
+      "test_class_balance": {
+        "0": 56,
+        "1": 14
+      },
+      "scaler_stats": {
+        "feature_count": 19,
+        "mean_abs_mean": 124.25253288796571,
+        "mean_std": 154.4640919271133,
+        "min_std": 0.03895642748372783,
+        "max_std": 1312.9029145981622
+      },
+      "n_train_patients": 279,
+      "n_test_patients_manifest": 70,
+      "train_metadata_row_indices_count": 279,
+      "test_metadata_row_indices_count": 70
+    },
+    {
+      "f1_macro": 0.6731578947368421,
+      "recall_macro": 0.7298701298701299,
+      "precision_macro": 0.6638888888888889,
+      "f1_brugada": 0.5263157894736842,
+      "precision_brugada": 0.4166666666666667,
+      "recall_brugada": 0.7142857142857143,
+      "specificity": 0.7454545454545455,
+      "confusion_matrix": [
+        [
+          41,
+          14
+        ],
+        [
+          4,
+          10
+        ]
+      ],
+      "roc_auc": 0.8155844155844156,
+      "pr_auc": 0.5319922910004474,
+      "sens_at_95spec": 0.42857142857142855,
+      "evaluation_unit": "patient",
+      "n_test_patients": 69,
+      "n_positive": 14,
+      "n_negative": 55,
+      "n_positive_test": 14,
+      "n_negative_test": 55,
+      "fold": 4,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "smote",
+      "inner_cv_best_f1_macro": 0.7113986444806116,
+      "best_params": {
+        "C": 0.1,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "saga"
+      },
+      "train_class_balance_pre_augmentation": {
+        "0": 222,
+        "1": 58
+      },
+      "train_class_balance_post_augmentation": {
+        "0": 222,
+        "1": 58
+      },
+      "test_class_balance": {
+        "0": 55,
+        "1": 14
+      },
+      "scaler_stats": {
+        "feature_count": 19,
+        "mean_abs_mean": 126.79462066668236,
+        "mean_std": 164.71783651168533,
+        "min_std": 0.037780713484913894,
+        "max_std": 1232.8076120322366
+      },
+      "n_train_patients": 280,
+      "n_test_patients_manifest": 69,
+      "train_metadata_row_indices_count": 280,
+      "test_metadata_row_indices_count": 69
+    }
+  ],
+  "aggregated_confusion_matrix": {
+    "matrix": [
+      [
+        228,
+        49
+      ],
+      [
+        21,
+        51
+      ]
+    ],
+    "TP": 51,
+    "TN": 228,
+    "FP": 49,
+    "FN": 21,
+    "note": "Summed across all 5 test folds. Valid because each patient appears in exactly one test fold (patient-level disjoint splits)."
+  },
+  "summary": {
+    "f1_macro": {
+      "mean": 0.731550489476092,
+      "std": 0.0896509951546314
+    },
+    "recall_macro": {
+      "mean": 0.764891774891775,
+      "std": 0.08689751335051253
+    },
+    "precision_macro": {
+      "mean": 0.7180187460618143,
+      "std": 0.08638136179944052
+    },
+    "f1_brugada": {
+      "mean": 0.5970560871876661,
+      "std": 0.13255395753447202
+    },
+    "precision_brugada": {
+      "mean": 0.5209862892525431,
+      "std": 0.14065854165955508
+    },
+    "recall_brugada": {
+      "mean": 0.7066666666666667,
+      "std": 0.12346472133757881
+    },
+    "specificity": {
+      "mean": 0.823116883116883,
+      "std": 0.06319966779803848
+    },
+    "roc_auc": {
+      "mean": 0.8352653061224491,
+      "std": 0.04893202255777787
+    },
+    "pr_auc": {
+      "mean": 0.6191037078780628,
+      "std": 0.11073639551725839
+    },
+    "sens_at_95spec": {
+      "mean": 0.4419047619047619,
+      "std": 0.11560351350889343
+    }
+  }
+}
