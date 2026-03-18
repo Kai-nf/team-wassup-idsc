@@ -15,7 +15,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
 from wfdb import processing as wfproc
 
-from data_loader import load_raw_dataset
+from environment_setup.data_loader import load_raw_dataset
 
 
 FS = 100  # Hz, sampling frequency
@@ -691,82 +691,69 @@ def build_method3_wavelet_dataset_from_loader(
     return X_beats, fold_metadata
 
 
-def load_wavelet_dataset_for_fold(
+def load_wavelet_dataset_with_master_manifest(
     fold_id: int,
     data_dir: str = "data_preprocessing",
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    master_manifest_path: str = "master_folds_drop14.json"
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Helper function that:
-    - Loads `dataset_v3_wavelet.npy` and `fold_composition_v3.json`.
-    - Applies per-lead StandardScaler fitted only on the training set of the
-      requested fold.
-    - Returns scaled train/test arrays and their labels.
-
-    Parameters
-    ----------
-    fold_id:
-        Integer in [0, 4] indicating which StratifiedGroupKFold split to load.
-    data_dir:
-        Directory containing `dataset_v3_wavelet.npy` and `fold_composition_v3.json`.
-
-    Returns
-    -------
-    X_train_scaled : np.ndarray
-        (N_train, 101, 12) array of scaled beats for the training set.
-    X_test_scaled : np.ndarray
-        (N_test, 101, 12) array of scaled beats for the test set.
-    y_train : np.ndarray
-        (N_train,) array of labels for the training set.
-    y_test : np.ndarray
-        (N_test,) array of labels for the test set.
+    Loads dataset_v3_wavelet.npy but splits it according to the patient-level 
+    Master Manifest rather than the internal v3 beat-level folds.
+    
+    Returns scaled X_train, scaled X_test, y_train, y_test, and test_patient_ids.
     """
     data_path = Path(data_dir)
     X_path = data_path / "dataset_v3_wavelet.npy"
-    json_path = data_path / "fold_composition_v3.json"
+    v3_json_path = data_path / "fold_composition_v3.json" # Still needed to map beats to patients
+    master_json_path = Path(master_manifest_path)
 
-    if not X_path.exists():
-        raise FileNotFoundError(f"Could not find {X_path}")
-    if not json_path.exists():
-        raise FileNotFoundError(f"Could not find {json_path}")
+    if not X_path.exists(): raise FileNotFoundError(f"Missing {X_path}")
+    if not v3_json_path.exists(): raise FileNotFoundError(f"Missing {v3_json_path}")
+    if not master_json_path.exists(): raise FileNotFoundError(f"Missing {master_json_path}")
 
+    # 1. Load the raw beats and the v3 beat-to-patient mapping
     X_beats = np.load(X_path)
-    with open(json_path, "r", encoding="utf-8") as f:
-        meta = json.load(f)
+    with open(v3_json_path, "r", encoding="utf-8") as f:
+        v3_meta = json.load(f)
+        
+    all_labels = np.array(v3_meta["labels"], dtype=int)
+    all_pids = np.array(v3_meta["patient_ids"], dtype=int)
 
-    labels = np.array(meta["labels"], dtype=int)
-    folds = meta["folds"]
+    # 2. Load the Master Manifest patient assignments
+    with open(master_json_path, "r", encoding="utf-8") as f:
+        master_meta = json.load(f)
+        
     fold_key = str(fold_id)
+    if fold_key not in master_meta["folds"]:
+        raise ValueError(f"Fold {fold_id} not found in {master_manifest_path}")
 
-    if fold_key not in folds:
-        raise ValueError(f"Fold {fold_id} not found in fold_composition_v3.json")
+# We just need to go one level deeper into the JSON to grab the actual list
+    master_train_pids = set(int(p) for p in master_meta["folds"][fold_key]["train"]["patient_ids"])
+    master_test_pids = set(int(p) for p in master_meta["folds"][fold_key]["test"]["patient_ids"])
 
-    train_indices = np.array(folds[fold_key]["train"]["beat_indices"], dtype=int)
-    test_indices = np.array(folds[fold_key]["test"]["beat_indices"], dtype=int)
+    # 3. Find which beat indices belong to the master train/test patients
+    train_indices = [i for i, pid in enumerate(all_pids) if pid in master_train_pids]
+    test_indices = [i for i, pid in enumerate(all_pids) if pid in master_test_pids]
 
+    train_indices = np.array(train_indices, dtype=int)
+    test_indices = np.array(test_indices, dtype=int)
+
+    # 4. Slice the arrays
     X_train = X_beats[train_indices]
     X_test = X_beats[test_indices]
-    y_train = labels[train_indices]
-    y_test = labels[test_indices]
+    y_train = all_labels[train_indices]
+    y_test = all_labels[test_indices]
+    test_pids = all_pids[test_indices]
 
-    # StandardScaler per lead:
-    # Treat each time point as a sample with 12 features (one per lead).
+    # 5. StandardScaler per lead (fit on train only)
     n_train, T, L = X_train.shape
     n_test = X_test.shape[0]
 
     scaler = StandardScaler()
-    X_train_2d = X_train.reshape(-1, L)
-    X_test_2d = X_test.reshape(-1, L)
+    X_train_scaled = scaler.fit_transform(X_train.reshape(-1, L)).reshape(n_train, T, L)
+    X_test_scaled = scaler.transform(X_test.reshape(-1, L)).reshape(n_test, T, L)
 
-    X_train_scaled_2d = scaler.fit_transform(X_train_2d)
-    X_test_scaled_2d = scaler.transform(X_test_2d)
-
-    X_train_scaled = X_train_scaled_2d.reshape(n_train, T, L)
-    X_test_scaled = X_test_scaled_2d.reshape(n_test, T, L)
-
-    return X_train_scaled.astype(np.float32), X_test_scaled.astype(
-        np.float32
-    ), y_train, y_test
-
+    return X_train_scaled.astype(np.float32), X_test_scaled.astype(np.float32), y_train, y_test, test_pids
 
 if __name__ == "__main__":
     """
