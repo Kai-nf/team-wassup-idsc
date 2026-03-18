@@ -1,0 +1,174 @@
+{
+  "fold_source": "master_folds_drop14.json",
+  "fold_source_sha256": "2e5937ec905c11d6514258decc7b4c401f20dce513a51215ab056667c0a14138",
+  "n_splits": 5,
+  "random_state": 42,
+  "method": "method4",
+  "model": "logistic",
+  "resampler": "none",
+  "fold_results": [
+    {
+      "f1_macro": 0.6634615384615384,
+      "recall_macro": 0.6909090909090909,
+      "precision_macro": 0.6530612244897959,
+      "confusion_matrix": [
+        [
+          43,
+          12
+        ],
+        [
+          6,
+          9
+        ]
+      ],
+      "roc_auc": 0.7769696969696971,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "fold": 0,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "none",
+      "inner_cv_best_f1_macro": 0.684867252983195,
+      "best_params": {
+        "C": 10.0,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "liblinear"
+      }
+    },
+    {
+      "f1_macro": 0.7422826394789012,
+      "recall_macro": 0.7606060606060605,
+      "precision_macro": 0.7297008547008548,
+      "confusion_matrix": [
+        [
+          47,
+          8
+        ],
+        [
+          5,
+          10
+        ]
+      ],
+      "roc_auc": 0.8109090909090908,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "fold": 1,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "none",
+      "inner_cv_best_f1_macro": 0.6732386896600077,
+      "best_params": {
+        "C": 0.01,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "saga"
+      }
+    },
+    {
+      "f1_macro": 0.7068243409706825,
+      "recall_macro": 0.7946428571428571,
+      "precision_macro": 0.6989664082687339,
+      "confusion_matrix": [
+        [
+          41,
+          15
+        ],
+        [
+          2,
+          12
+        ]
+      ],
+      "roc_auc": 0.875,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "fold": 2,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "none",
+      "inner_cv_best_f1_macro": 0.6802955956854012,
+      "best_params": {
+        "C": 0.1,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "saga"
+      }
+    },
+    {
+      "f1_macro": 0.6260683760683761,
+      "recall_macro": 0.6607142857142857,
+      "precision_macro": 0.6193181818181819,
+      "confusion_matrix": [
+        [
+          42,
+          14
+        ],
+        [
+          6,
+          8
+        ]
+      ],
+      "roc_auc": 0.7474489795918368,
+      "evaluation_unit": "patient",
+      "n_test_patients": 70,
+      "fold": 3,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "none",
+      "inner_cv_best_f1_macro": 0.7470210603750976,
+      "best_params": {
+        "C": 10.0,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "liblinear"
+      }
+    },
+    {
+      "f1_macro": 0.6479591836734694,
+      "recall_macro": 0.7116883116883117,
+      "precision_macro": 0.6457960644007156,
+      "confusion_matrix": [
+        [
+          39,
+          16
+        ],
+        [
+          4,
+          10
+        ]
+      ],
+      "roc_auc": 0.7870129870129869,
+      "evaluation_unit": "patient",
+      "n_test_patients": 69,
+      "fold": 4,
+      "model": "logistic",
+      "method": "method4",
+      "resampler": "none",
+      "inner_cv_best_f1_macro": 0.6952217553688141,
+      "best_params": {
+        "C": 10.0,
+        "class_weight": "balanced",
+        "penalty": "l2",
+        "solver": "liblinear"
+      }
+    }
+  ],
+  "summary": {
+    "f1_macro": {
+      "mean": 0.6773192157305935,
+      "std": 0.04188435055795059
+    },
+    "recall_macro": {
+      "mean": 0.7237121212121211,
+      "std": 0.04812830795616686
+    },
+    "precision_macro": {
+      "mean": 0.6693685467356565,
+      "std": 0.039604672710104726
+    },
+    "roc_auc": {
+      "mean": 0.7994681508967224,
+      "std": 0.04290282288393419
+    }
+  }
+}

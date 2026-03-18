@@ -4,5 +4,8 @@
   "jupyter.askForKernelRestart": false,
   "python.analysis.extraPaths": [
     "${workspaceFolder}/.venv/lib/python3.14/site-packages"
-  ]
+  ],
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.reportMissingImports": "none",
+  "python.analysis.reportMissingModuleSource": "none"
 }
