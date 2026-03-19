@@ -36,6 +36,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import math
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.metrics import (
     average_precision_score,
@@ -58,9 +59,9 @@ BETA_1         = 0.9
 BETA_2         = 0.999
 BATCH_SIZE     = 64
 MAX_EPOCHS     = 100
-ES_PATIENCE    = 15
+ES_PATIENCE    = 25
 ES_MIN_DELTA   = 1e-4
-THRESHOLD      = 0.75
+THRESHOLD      = 0.68
 RANDOM_SEED    = 42
 
 REPO_ROOT = Path(__file__).resolve().parents[2] 
@@ -427,7 +428,390 @@ def rollup_beats_to_patients(beat_patient_ids: np.ndarray,
 
     return patient_ids, patient_probs_max, patient_probs_mean, patient_preds
 
+"""
+batch_ecg_augmenter.py
+=======================
+Online physiological augmentation for supervised 1D-CNN Brugada classification.
 
+Input  : (B, 12, 101)  — channels-first, on GPU or CPU
+Output : (B, 12, 101)  — augmented batch, same device
+
+Changes from original version:
+  [FIX 1]  All probability checks converted to per-sample masks (B,) — no
+           longer applies the same decision to all samples in the batch.
+  [FIX 2]  Gaussian noise now uses MAD instead of STD as the noise reference
+           to avoid R-peak spike dominating the scale estimate.
+  [FIX 3]  Gain scaling changed to per-lead (B,12,1) ~ U(0.85,1.15) for
+           independent lead-level variability, in addition to optional global
+           gain (B,1,1) ~ U(0.7,1.3). Both applied together.
+  [FIX 4]  Temporal shift: edge-replication padding replaces zero-padding to
+           avoid the model learning the zero-boundary artefact. Shift sampled
+           per sample, not once for the whole batch.
+  [FIX 5]  Baseline drift: wavelength parameter removed (has no visible effect
+           over T=101 samples). Replaced with a simple linear ramp, which is
+           mathematically equivalent and cheaper.
+  [FIX 6]  Channel dropout: Python for-loop replaced with vectorised GPU mask.
+  [FIX 7]  Time warping: F.interpolate uses explicit size= instead of the
+           deprecated scale_factor + align_corners combination. Scale factor
+           sampled per sample, not once per batch. Edge-replication replaces
+           zero-padding on short warps.
+
+Lead index convention (standard 12-lead order, 0-indexed):
+    0=I  1=II  2=III  3=aVR  4=aVL  5=aVF  6=V1  7=V2  8=V3  9=V4  10=V5  11=V6
+    Protected (Brugada-diagnostic): V1, V2, V3  → indices 6, 7, 8
+"""
+
+import math
+import torch
+import torch.nn.functional as F
+
+
+"""
+batch_ecg_augmenter.py  (v2 — Augmentation Budget)
+====================================================
+Online physiological augmentation for supervised 1D-CNN Brugada classification.
+
+Input  : (B, 12, 101)  — channels-first, on GPU or CPU
+Output : (B, 12, 101)  — augmented batch, same device
+
+v2 changes vs v1:
+  [BUDGET] The three temporal augmentations (drift, shift, warp) now share a
+  single firing probability p_temporal_any. If it fires for a sample, exactly
+  ONE temporal augmentation is chosen uniformly at random from the pool.
+  This eliminates the Avalanche Effect: it was previously possible for all
+  three temporal distortions to stack simultaneously (P=0.5^3=12.5% per
+  sample), which compounded baseline tilt + beat misalignment + QRS stretch
+  into a morphology the CNN could not recognise as Brugada — while still
+  carrying y=1 labels.
+
+  Probability distribution comparison:
+    v1 (independent p=0.5 each): E[k]=2.70, P(3+ augs)=56.3%
+    v2 (budgeted temporal):      E[k]≈2.10, P(3+ temporal)=0% (guaranteed)
+
+  Augmentation tiers:
+    AMPLITUDE (independent, safe to stack):  noise, gain
+    TEMPORAL  (budget=1, mutually exclusive): drift, shift, warp
+    STRUCTURAL (independent, orthogonal):     channel dropout
+
+Lead index convention (standard 12-lead order, 0-indexed):
+    0=I  1=II  2=III  3=aVR  4=aVL  5=aVF  6=V1  7=V2  8=V3  9=V4  10=V5  11=V6
+    Protected (Brugada-diagnostic): V1, V2, V3  -> indices 6, 7, 8
+"""
+
+import torch
+import torch.nn.functional as F
+
+
+class BatchECGAugmenter:
+    """
+    Online physiological augmentation with temporal augmentation budget.
+
+    Parameters
+    ----------
+    p_noise        : float  Per-sample probability of Gaussian noise         [0,1]
+    p_gain         : float  Per-sample probability of gain scaling            [0,1]
+    p_temporal_any : float  Per-sample probability that ANY temporal aug fires[0,1]
+                            If fires, exactly one of {drift, shift, warp} is chosen.
+    p_dropout      : float  Per-sample probability of channel dropout         [0,1]
+    noise_scale    : float  Noise amplitude = MAD * noise_scale per lead
+    temporal_weights: list  Relative sampling weights for [drift, shift, warp]
+                            Default equal-weight; adjust to favour safer augs.
+    """
+
+    PROTECTED_LEADS = [6, 7, 8]           # V1, V2, V3 — never dropped
+    DROPPABLE_LEADS = [0,1,2,3,4,5,9,10,11]
+
+    def __init__(
+        self,
+        p_noise:          float = 0.70,
+        p_gain:           float = 0.70,
+        p_temporal_any:   float = 0.60,
+        p_dropout:        float = 0.20,
+        noise_scale:      float = 0.10,
+        temporal_weights: list  = None,
+    ):
+        self.p_noise          = p_noise
+        self.p_gain           = p_gain
+        self.p_temporal_any   = p_temporal_any
+        self.p_dropout        = p_dropout
+        self.noise_scale      = noise_scale
+
+        # Sampling weights for the three temporal augmentations.
+        # Equal by default. Can be tuned to e.g. [3,2,1] to favour drift
+        # (safest) over warp (most aggressive).
+        if temporal_weights is None:
+            temporal_weights = [1, 1, 1]   # drift, shift, warp
+        w = torch.tensor(temporal_weights, dtype=torch.float32)
+        self._temporal_probs = w / w.sum()   # normalised
+
+        self._droppable = torch.tensor(self.DROPPABLE_LEADS, dtype=torch.long)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Public interface
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def __call__(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply all augmentations to a batch.
+
+        Parameters
+        ----------
+        x : torch.Tensor  shape (B, 12, 101)
+
+        Returns
+        -------
+        torch.Tensor  shape (B, 12, 101), same device as input
+        """
+        B, L, T = x.shape
+        device   = x.device
+        x_aug    = x.clone()
+
+        # Amplitude tier (independent — safe to stack)
+        x_aug = self._gaussian_noise(x_aug, B, device)
+        x_aug = self._gain_scaling(x_aug, B, device)
+
+        # Temporal tier (budget=1 — mutually exclusive within tier)
+        x_aug = self._temporal_budget(x_aug, B, T, L, device)
+
+        # Structural tier (independent — orthogonal to morphology)
+        x_aug = self._channel_dropout(x_aug, B, device)
+
+        return x_aug
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Helpers
+    # ──────────────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _sample_mask(B: int, p: float, device: torch.device) -> torch.Tensor:
+        """Per-sample boolean mask of shape (B,)."""
+        return torch.rand(B, device=device) < p
+
+    @staticmethod
+    def _mad(x: torch.Tensor) -> torch.Tensor:
+        """
+        Median Absolute Deviation per lead per sample.
+        Robust to R-peak spike unlike STD.
+        Input: (n, 12, 101) → Output: (n, 12, 1)
+        """
+        med = x.median(dim=-1, keepdim=True).values
+        return (x - med).abs().median(dim=-1, keepdim=True).values
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Amplitude tier
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _gaussian_noise(self, x: torch.Tensor, B: int,
+                        device: torch.device) -> torch.Tensor:
+        """
+        Add white Gaussian noise scaled to MAD of each lead independently.
+        noise_scale=0.10 -> sigma ~ 10% of lead baseline variability.
+        MAD is used (not STD) to avoid R-peak spike inflating the noise scale.
+        """
+        mask = self._sample_mask(B, self.p_noise, device)
+        if not mask.any():
+            return x
+        mad   = self._mad(x[mask])                          # (n, 12, 1)
+        noise = torch.randn_like(x[mask]) * mad * self.noise_scale
+        x[mask] = x[mask] + noise
+        return x
+
+    def _gain_scaling(self, x: torch.Tensor, B: int,
+                      device: torch.device) -> torch.Tensor:
+        """
+        Two-level multiplicative gain:
+          Global  gain ~ U(0.70, 1.30) : body habitus / overall electrode contact
+          Per-lead gain ~ U(0.85, 1.15): individual electrode impedance variation
+
+        Applied independently per masked sample. Waveform SHAPE is exactly
+        preserved — only amplitude changes. Safe to stack with any augmentation.
+        """
+        mask = self._sample_mask(B, self.p_gain, device)
+        if not mask.any():
+            return x
+        n = mask.sum().item()
+        g_global   = torch.empty(n,  1, 1, device=device).uniform_(0.70, 1.30)
+        g_per_lead = torch.empty(n, 12, 1, device=device).uniform_(0.85, 1.15)
+        x[mask] = x[mask] * g_global * g_per_lead
+        return x
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Temporal tier — budget dispatcher
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _temporal_budget(self, x: torch.Tensor, B: int, T: int, L: int,
+                         device: torch.device) -> torch.Tensor:
+        """
+        Temporal augmentation budget controller.
+
+        For each sample:
+          1. With probability p_temporal_any: fires the temporal tier.
+          2. If fired: sample ONE augmentation from {drift, shift, warp}
+             according to self._temporal_probs (default uniform).
+
+        This guarantees that at most ONE temporal distortion applies per beat,
+        eliminating the avalanche stacking of drift + shift + warp that
+        previously occurred with P = 0.5^3 = 12.5% per sample.
+
+        Clinical rationale: each temporal augmentation individually preserves
+        the Brugada coved ST pattern. But drift+shift together make the ST
+        baseline unreliable, drift+warp distort both elevation and duration,
+        and shift+warp compound two independent timing distortions — any
+        two together degrade the morphological signal non-linearly.
+        """
+        # Which samples get any temporal augmentation at all
+        outer_mask = self._sample_mask(B, self.p_temporal_any, device)
+        if not outer_mask.any():
+            return x
+
+        n = outer_mask.sum().item()
+
+        # Sample which temporal aug each masked sample receives
+        # 0=drift, 1=shift, 2=warp
+        choices = torch.multinomial(
+            self._temporal_probs.expand(n, -1).to(device),
+            num_samples=1,
+        ).squeeze(1)   # (n,)
+
+        # Split masked samples into three groups and apply the chosen aug
+        x_masked = x[outer_mask]   # (n, 12, T)
+
+        drift_idx = (choices == 0).nonzero(as_tuple=True)[0]
+        shift_idx = (choices == 1).nonzero(as_tuple=True)[0]
+        warp_idx  = (choices == 2).nonzero(as_tuple=True)[0]
+
+        if drift_idx.numel() > 0:
+            x_masked[drift_idx] = self._apply_drift(
+                x_masked[drift_idx], L, T, device)
+
+        if shift_idx.numel() > 0:
+            x_masked[shift_idx] = self._apply_shift(
+                x_masked[shift_idx], T, device)
+
+        if warp_idx.numel() > 0:
+            x_masked[warp_idx] = self._apply_warp(
+                x_masked[warp_idx], T, device)
+
+        x[outer_mask] = x_masked
+        return x
+
+    # ── Temporal sub-augmentations ────────────────────────────────────────────
+
+    @staticmethod
+    def _apply_drift(x: torch.Tensor, L: int, T: int,
+                     device: torch.device) -> torch.Tensor:
+        """
+        Linear baseline tilt scaled by per-lead IQR.
+
+        Simplified from the original sinusoidal formulation:
+        wavelength U(300,500) over T=101 samples only completes 0.20-0.34
+        cycles — indistinguishable from a linear ramp. The wavelength
+        parameter had no observable effect. Replaced with linspace(-1,1,T).
+
+        k ~ U(0.5, 1.0) per lead: leads drift independently (physiologically
+        correct — respiration affects leads differently based on electrode axis).
+        IQR used instead of STD for robustness to R-peak outlier.
+        """
+        n = x.shape[0]
+        ramp = torch.linspace(-1.0, 1.0, T, device=device).view(1, 1, T)
+        q75  = torch.quantile(x, 0.75, dim=-1, keepdim=True)
+        q25  = torch.quantile(x, 0.25, dim=-1, keepdim=True)
+        iqr  = q75 - q25                                        # (n, 12, 1)
+        k    = torch.empty(n, L, 1, device=device).uniform_(0.5, 1.0)
+        return x + k * iqr * ramp
+
+    @staticmethod
+    def _apply_shift(x: torch.Tensor, T: int,
+                     device: torch.device) -> torch.Tensor:
+        """
+        Shift each sample independently by Δt ~ U{-5,...,+5} samples.
+
+        Edge replication padding (not zero-padding) avoids the model learning
+        a spurious zero-boundary artefact at beat edges after the shift.
+
+        ±5 samples = ±50 ms at 100 Hz — matches R-peak detection uncertainty
+        from the wavelet segmentation pipeline.
+        """
+        n      = x.shape[0]
+        shifts = torch.randint(-5, 6, (n,)).tolist()
+        for i, s in enumerate(shifts):
+            if s == 0:
+                continue
+            x[i] = torch.roll(x[i], shifts=s, dims=-1)
+            if s > 0:
+                x[i, :, :s] = x[i, :, s:s+1]   # replicate first valid sample
+            else:
+                x[i, :, s:] = x[i, :, s-1:s]   # replicate last valid sample
+        return x
+
+    @staticmethod
+    def _apply_warp(x: torch.Tensor, T: int,
+                    device: torch.device) -> torch.Tensor:
+        """
+        Per-sample time warp: stretch or compress by scale ~ U(0.97, 1.03).
+
+        ±3% is more conservative than the original ±5% to further protect
+        QRS complex width and ST-segment duration from distortion.
+
+        Uses F.interpolate with explicit size= (not deprecated scale_factor=).
+        Edge replication padding for short warps (consistent with shift aug).
+        """
+        n = x.shape[0]
+        scale_factors = torch.empty(n, device=device).uniform_(0.97, 1.03)
+        results = []
+        for i in range(n):
+            sf     = scale_factors[i].item()
+            new_T  = max(1, round(T * sf))
+            sample = x[i].unsqueeze(0)                         # (1, 12, T)
+            warped = F.interpolate(
+                sample, size=new_T, mode='linear', align_corners=True
+            ).squeeze(0)                                       # (12, new_T)
+
+            if new_T > T:
+                start  = (new_T - T) // 2
+                result = warped[:, start:start + T]
+            elif new_T < T:
+                pad_l  = (T - new_T) // 2
+                pad_r  = T - new_T - pad_l
+                left   = warped[:, :1].expand(-1, pad_l)
+                right  = warped[:, -1:].expand(-1, pad_r)
+                result = torch.cat([left, warped, right], dim=-1)
+            else:
+                result = warped
+            results.append(result)
+
+        return torch.stack(results, dim=0)
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # Structural tier
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _channel_dropout(self, x: torch.Tensor, B: int,
+                         device: torch.device) -> torch.Tensor:
+        """
+        Zero one randomly selected non-diagnostic lead per triggered sample.
+
+        V1 (6), V2 (7), V3 (8) are permanently protected — these carry the
+        Brugada coved ST pattern in V1-V3 and must not be zeroed.
+        Only limb/lateral leads {I, II, III, aVR, aVL, aVF, V4, V5, V6}
+        are eligible.
+
+        Vectorised — no Python loop over batch dimension.
+        """
+        mask = self._sample_mask(B, self.p_dropout, device)
+        if not mask.any():
+            return x
+
+        n          = mask.sum().item()
+        droppable  = self._droppable.to(device)
+        rand_idx   = torch.randint(0, len(droppable), (n,), device=device)
+        drop_leads = droppable[rand_idx]                       # (n,)
+
+        lead_mask  = torch.ones(n, 12, dtype=torch.bool, device=device)
+        lead_mask[torch.arange(n, device=device), drop_leads] = False
+
+        x[mask] = x[mask] * lead_mask.unsqueeze(-1).float()
+        return x
 # =============================================================================
 # TRAINING LOOP (single fold)
 # =============================================================================
@@ -476,11 +860,17 @@ def train_one_fold(model: nn.Module,
     es = EarlyStopping()
     model.to(DEVICE)
 
+    augmenter = BatchECGAugmenter()
+
     for epoch in range(1, MAX_EPOCHS + 1):
         # ── Train pass ──────────────────────────────────────────────────────
         model.train()
         for Xb, yb in train_dl:
             Xb, yb = Xb.to(DEVICE), yb.to(DEVICE)
+
+            # --- NEW: Apply augmentation strictly during training ---
+            Xb = augmenter(Xb)
+
             optimiser.zero_grad()
             criterion(model(Xb), yb).backward()
             optimiser.step()

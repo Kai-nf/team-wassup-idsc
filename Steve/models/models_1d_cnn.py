@@ -80,7 +80,7 @@ def train_1d_cnn():
     os.makedirs("results/model_weights", exist_ok=True)
     all_fold_preds = {}
     
-    data_dir = REPO_ROOT / "JiaKang"
+    data_dir = REPO_ROOT 
     master_manifest_path = data_dir / "master_folds_drop14.json"
 
     # Ensure indentation is exactly 4 spaces here

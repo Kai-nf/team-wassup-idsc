@@ -2,14 +2,14 @@ import json
 import numpy as np
 import os
 from pathlib import Path
-from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score
+from sklearn.metrics import f1_score, recall_score, precision_score, roc_auc_score, confusion_matrix
 
 def run_ensemble():
     REPO_ROOT = Path(__file__).resolve().parents[2]
     results_dir = REPO_ROOT / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     
-    cnn_path = results_dir / "method3_1dcnn_predictions.json"
+    cnn_path = results_dir / "method3.1_1dcnn_beat_level.json"
     xgb_path = results_dir / "method4_xgboost_predictions.json"
     output_path = results_dir / "ensemble_predictions.json"
     
@@ -21,11 +21,12 @@ def run_ensemble():
     all_fold_preds = {}
     
     for fold_id in range(5):
-        fold_key = f"fold_{fold_id}"
+        fold_key_xgb = f"fold_{fold_id}"
+        fold_key_cnn = str(fold_id)
         
         # Extract raw lists
-        cnn_data = cnn_preds[fold_key]
-        xgb_data = xgb_preds[fold_key]
+        cnn_data = cnn_preds["folds"][fold_key_cnn]
+        xgb_data = xgb_preds[fold_key_xgb]
         
         cnn_pids = cnn_data["patient_ids"]
         cnn_probs = cnn_data["y_prob_patient"]
@@ -40,7 +41,7 @@ def run_ensemble():
         true_dict = {int(pid): true for pid, true in zip(cnn_pids, cnn_trues)}
 
         # 1. Assert the SET of patients match (ignoring order entirely)
-        assert set(cnn_dict.keys()) == set(xgb_dict.keys()), f"Patient mismatch in {fold_key}!"
+        assert set(cnn_dict.keys()) == set(xgb_dict.keys()), f"Patient mismatch in {fold_key_xgb}!"
 
         # 2. Sort the integer IDs to create a master aligned order
         aligned_pids = sorted(cnn_dict.keys())
@@ -59,15 +60,19 @@ def run_ensemble():
         rec = recall_score(aligned_trues, ensemble_pred, zero_division=0)
         prec = precision_score(aligned_trues, ensemble_pred, zero_division=0)
         
+        # Calculate Specificity
+        tn, fp, fn, tp = confusion_matrix(aligned_trues, ensemble_pred).ravel()
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        
         if len(np.unique(aligned_trues)) > 1:
             auc = roc_auc_score(aligned_trues, ensemble_prob)
         else:
             auc = float('nan')
             
-        print(f"{fold_key} Ensemble -> F1(macro): {f1:.3f} | Recall: {rec:.3f} | Precision: {prec:.3f} | AUC: {auc:.3f}")
+        print(f"{fold_key_xgb} Ensemble -> F1(macro): {f1:.3f} | Recall: {rec:.3f} | Specificity: {specificity:.3f} | Precision: {prec:.3f} | AUC: {auc:.3f}")
 
         # 6. Save back to the output dictionary
-        all_fold_preds[fold_key] = {
+        all_fold_preds[fold_key_xgb] = {
             "patient_ids": aligned_pids,
             "y_true_patient": aligned_trues.tolist(),
             "y_prob_patient": ensemble_prob.tolist(),
