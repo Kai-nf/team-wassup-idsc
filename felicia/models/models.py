@@ -565,6 +565,9 @@ def run_experiment(
             m = _metrics(y_test, y_pred, y_prob)
             m["evaluation_unit"] = "patient"
             m["n_test_patients"] = int(len(y_test))
+            m["patient_ids"] = pid_test.tolist()
+            m["y_true"] = y_test.tolist()
+            m["y_prob"] = y_prob.tolist()
 
         # Phase 5: Track positive/negative counts for PR-AUC contextualization
         if method in {"method3", "method3_1", "method3_2"}:
