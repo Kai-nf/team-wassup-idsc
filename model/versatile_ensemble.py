@@ -52,6 +52,7 @@ Schema compatibility note:
 
 import json
 import sys
+import re
 import warnings
 from pathlib import Path
 
@@ -72,15 +73,15 @@ from sklearn.metrics import (
 # =============================================================================
 
 # ── File paths ────────────────────────────────────────────────────────────────
-JSON_MODEL_A = Path("felicia/results/evaluation_metrics/method4_logistic_smote.json")   # can be changed, now is rf_smote
+JSON_MODEL_A = Path("results/method4_xgboost_smote.json")   # can be changed, now is rf_smote
 JSON_MODEL_B = Path("results/method3.1_1dcnn_beat_level.json")  # can be changed
 
 # ── Ensemble weights ──────────────────────────────────────────────────────────
 # ROC-AUCs are close (LR=0.835, CNN=0.828) but models are at opposite ends of
 # the recall-spec curve.  For screening (recall priority) weight CNN higher.
 # For diagnostic support (specificity priority) weight LR higher.
-W_MODEL_A = 0.5   # lr_smote  weight
-W_MODEL_B = 0.5   # CNN weight
+W_MODEL_A = 0.35   # lr_smote  weight
+W_MODEL_B = 0.65   # CNN weight
 
 # ── Threshold sweep ────────────────────────────────────────────────────────────
 # The ensemble operates in its own probability space — do not use either
@@ -114,7 +115,7 @@ N_FOLDS = 5
 
 SCHEMA_CONFIG = {
     "model_a": {   # LR (v4) — awaiting regeneration
-        "label":          "LR+SMOTE (v4)",
+        "label":          "XGB+SMOTE (v4)",
         "folds_root":     "fold_results",
         "folds_type":     "list",       # fold_results[fold_idx]
         "patient_ids":    "patient_ids",
@@ -163,24 +164,36 @@ def make_output_filename(schema_a: dict, schema_b: dict,
       CNN w=0.60 + RF w=0.40  ->  ensemble_CNN060_RF040.json
       CNN w=0.50 + XGB w=0.50 ->  ensemble_CNN050_XGB050.json
     """
-    def short_tag(label: str) -> str:
-        label_upper = label.upper()
-        if "XGB" in label_upper or "XGBOOST" in label_upper:
-            return "XGB"
-        if "CNN" in label_upper:
-            return "CNN"
-        if "RF" in label_upper or "RANDOM FOREST" in label_upper:
-            return "RF"
-        if "LR" in label_upper or "LOGISTIC" in label_upper:
-            return "LR"
-        if "SVM" in label_upper:
-            return "SVM"
-        # Fallback: first word, alphanumeric only
-        import re
-        return re.sub(r"[^A-Z0-9]", "", label.split()[0].upper())[:6]
+    def short_tag(schema: dict) -> str:
+        label = schema.get("label", "").upper()
+        resampler_key = schema.get("resampler", "").upper()
+        
+        # 1. Identify the base model
+        if "XGB" in label or "XGBOOST" in label:
+            base = "XGB"
+        elif "CNN" in label:
+            base = "CNN"
+        elif "RF" in label or "RANDOM FOREST" in label:
+            base = "RF"
+        elif "LR" in label or "LOGISTIC" in label:
+            base = "LR"
+        elif "SVM" in label:
+            base = "SVM"
+        else:
+            # Fallback: first word, alphanumeric only
+            import re
+            base = re.sub(r"[^A-Z0-9]", "", label.split()[0])[:6]
+            
+        # 2. Identify the resampling technique (check both label string and json key)
+        if "ADASYN" in label or "ADASYN" in resampler_key:
+            base += "_ADASYN"
+        elif "SMOTE" in label or "SMOTE" in resampler_key:
+            base += "_SMOTE"
+            
+        return base
  
-    tag_a = short_tag(schema_a["label"])
-    tag_b = short_tag(schema_b["label"])
+    tag_a = short_tag(schema_a)
+    tag_b = short_tag(schema_b)
  
     # Format weight as three-digit integer: 0.65 -> "065", 0.5 -> "050"
     wa_str = f"{int(round(wa * 100)):03d}"
