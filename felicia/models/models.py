@@ -47,7 +47,6 @@ def _resolve_load_raw_dataset():
     candidates = [
         ROOT_DIR / "Environment_setup" / "data_loader.py",
         ROOT_DIR / "data_loader.py",
-        ROOT_DIR / "brugada-ecg-classifier" / "data_loader.py",
     ]
     for idx, c in enumerate(candidates):
         if not c.exists():

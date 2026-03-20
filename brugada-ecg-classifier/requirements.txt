@@ -1,7 +1,0 @@
-neurokit2
-numpy
-pandas
-scikit-learn
-wfdb
-json
-matplotlib

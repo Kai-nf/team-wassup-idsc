@@ -1,4 +1,4 @@
-from data_loader import load_raw_dataset
+from Environment_setup.data_loader import load_raw_dataset
 from data_preprocessing.method2 import run_preprocessing_pipeline
 from felicia.data_preprocessing_method1.method1 import run_raw_baseline_pipeline
 
