@@ -64,20 +64,20 @@ ES_MIN_DELTA   = 1e-4
 THRESHOLD      = 0.68
 RANDOM_SEED    = 42
 
-REPO_ROOT = Path(__file__).resolve().parents[2] 
+REPO_ROOT = Path(__file__).resolve().parents[1] 
 OUTPUT_DIR = REPO_ROOT / "results"
 
 # Mode-specific config — populated at runtime from args
 MODE_CONFIG = {
     "v3.1": {
-        "wavelet_path": REPO_ROOT / "JiaKang" / "dataset_v3.1_wavelet.npy",
+        "wavelet_path": REPO_ROOT / "Preprocessed_Dataset" / "dataset_v3.1_wavelet.npy",
         "manifest_path": REPO_ROOT / "master_folds_drop14.json",
         "output_file": "method3.1_1dcnn_beat_level.json",
         "method_tag": "method3.1",
     },
     "v3": {
-        "wavelet_path": REPO_ROOT / "JiaKang" / "dataset_v3_wavelet.npy",
-        "manifest_path": REPO_ROOT / "JiaKang" / "fold_composition_v3.json",
+        "wavelet_path": REPO_ROOT / "Preprocessed_Dataset" / "dataset_v3_wavelet.npy",
+        "manifest_path": REPO_ROOT / "Preprocessed_Dataset" / "fold_composition_v3.json",
         "output_file": "method3_1dcnn_beat_level.json",
         "method_tag": "method3",
     },
@@ -498,9 +498,6 @@ Lead index convention (standard 12-lead order, 0-indexed):
     Protected (Brugada-diagnostic): V1, V2, V3  -> indices 6, 7, 8
 """
 
-import torch
-import torch.nn.functional as F
-
 
 class BatchECGAugmenter:
     """
@@ -812,6 +809,7 @@ class BatchECGAugmenter:
 
         x[mask] = x[mask] * lead_mask.unsqueeze(-1).float()
         return x
+
 # =============================================================================
 # TRAINING LOOP (single fold)
 # =============================================================================
@@ -968,6 +966,10 @@ def main():
 
     # ── Output directory ──────────────────────────────────────────────────────
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # --- NEW: Create weights directory ---
+    weights_dir = OUTPUT_DIR / "model_weights"
+    weights_dir.mkdir(parents=True, exist_ok=True)
 
     # ── Results container ─────────────────────────────────────────────────────
     results = {
@@ -1041,6 +1043,12 @@ def main():
         model, epochs_trained = train_one_fold(
             model, X_train_t, y_train, X_test_t, y_test_beat, pos_weight
         )
+        
+        # --- NEW: Save model weights per fold ---
+        torch.save(
+            model.state_dict(),
+            weights_dir / f"1dcnn_fold_{fold_key}.pt"
+        )
 
         # ── 6. Beat-level inference ──────────────────────────────────────────
         model.eval()
@@ -1063,6 +1071,15 @@ def main():
         patient_probs_max  = patient_probs_max[valid_mask]
         patient_probs_mean = patient_probs_mean[valid_mask]
         patient_preds      = patient_preds[valid_mask]
+
+        # --- NEW: Save per-fold arrays for XAI script ---
+        fold_dir = OUTPUT_DIR / "fold_outputs"
+        fold_dir.mkdir(parents=True, exist_ok=True)
+
+        np.save(fold_dir / f"fold_{fold_key}_patient_ids.npy", rollup_pids)
+        np.save(fold_dir / f"fold_{fold_key}_y_true.npy", y_true_patient)
+        np.save(fold_dir / f"fold_{fold_key}_y_prob.npy", patient_probs_max)
+        # ------------------------------------------------
 
         # ── 8. Patient-level metrics ─────────────────────────────────────────
         if len(np.unique(y_true_patient)) < 2:
