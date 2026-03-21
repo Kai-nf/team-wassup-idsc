@@ -130,9 +130,9 @@ def _pick_case(patient_ids, y_true, y_prob, mode):
             return (pid, yt_i, yp_f)
         if mode == "FP" and yt_i == 0 and yp_f > 0.8:
             return (pid, yt_i, yp_f)
-        if mode == "FN" and yt_i == 1 and yp_f < 0.2:
+        # Change this line:
+        if mode == "FN" and yt_i == 1 and yp_f < 0.5:  # Relaxed to 0.5
             return (pid, yt_i, yp_f)
-
     return None
 
 
@@ -172,9 +172,9 @@ def main():
     vis_dir = REPO_ROOT / "results" / "visualizations"
     vis_dir.mkdir(parents=True, exist_ok=True)
 
-    # Paths
-    data_path = REPO_ROOT / "JiaKang" / "dataset_v3_wavelet.npy"
-    manifest_path = REPO_ROOT / "master_folds_drop14.json"
+    # 1. FIXED PATHS: Point to Preprocessed_Dataset and v3.1
+    data_path = REPO_ROOT / "Preprocessed_Dataset" / "dataset_v3.1_wavelet.npy"
+    comp_path = REPO_ROOT / "Preprocessed_Dataset" / "fold_composition_v3.1.json"
     weights_path = REPO_ROOT / "results" / "model_weights" / "1dcnn_fold_0.pt"
 
     # Use your requested ensemble JSON
@@ -195,32 +195,22 @@ def main():
 
     grad_cam = GradCAM1D(model, target_layer)
 
-    # ---------- Robust fold-0 parsing for ensemble JSON ----------
-    if not preds_path_primary.exists():
-        print(f"Error: Could not find prediction JSON at {preds_path_primary}")
-        return
+   # ---------- Load the .npy prediction files we saved during training ----------
+    fold_dir = REPO_ROOT / "results" / "fold_outputs"
+    pid_file = fold_dir / "fold_0_patient_ids.npy"
+    yt_file  = fold_dir / "fold_0_y_true.npy"
+    yp_file  = fold_dir / "fold_0_y_prob.npy"
 
-    with open(preds_path_primary, "r") as f:
-        preds = json.load(f)
+    if not (pid_file.exists() and yt_file.exists() and yp_file.exists()):
+        raise ValueError(f"Error: Could not find .npy files in {fold_dir}. Make sure the training script finished successfully.")
 
-    fold_0_data = preds.get("folds", {}).get("0", None)
-    if fold_0_data is None:
-        raise ValueError("Could not find folds['0'] in results/ensemble_CNN065_LR035.json")
-
-    # Try common key variants
-    patient_ids = fold_0_data.get("patient_ids")
-    y_true = fold_0_data.get("y_true_patient") or fold_0_data.get("y_true")
-    y_prob = fold_0_data.get("y_prob_patient") or fold_0_data.get("y_prob")
-
-    if patient_ids is None or y_true is None or y_prob is None:
-        raise ValueError(
-            "fold 0 missing required arrays. Expected patient_ids + y_true + y_prob arrays."
-        )
+    patient_ids = np.load(pid_file)
+    y_true = np.load(yt_file)
+    y_prob = np.load(yp_file)
 
     if not (len(patient_ids) == len(y_true) == len(y_prob)):
-        raise ValueError(
-            f"Length mismatch: patient_ids={len(patient_ids)}, y_true={len(y_true)}, y_prob={len(y_prob)}"
-        )
+        raise ValueError("Length mismatch in the loaded .npy arrays!")
+           
 
     # ---------- Find requested cases ----------
     tp_case = _pick_case(patient_ids, y_true, y_prob, mode="TP")
@@ -233,21 +223,20 @@ def main():
     print(" FP found:", fp_case is not None, "(may be none because fold_0 FP=0 at t=0.5)")
     print(" FN found:", fn_case is not None)
 
-    # Load wavelets + fold manifest
+    # Load wavelets + beat mapping JSON
     if not data_path.exists():
         print(f"Error: Could not find data at {data_path}")
         return
-    if not manifest_path.exists():
-        print(f"Error: Could not find manifest at {manifest_path}")
+    if not comp_path.exists():
+        print(f"Error: Could not find composition manifest at {comp_path}")
         return
 
     wavelets = np.load(data_path)
-    with open(manifest_path, "r") as f:
-        manifest = json.load(f)
-
-    # Mapping logic (same style as your existing code)
-    all_pids_fold0 = manifest["folds"]["0"]["test"]["patient_ids"] + manifest["folds"]["0"]["train"]["patient_ids"]
-    pid_to_idx = {int(pid): idx for idx, pid in enumerate(all_pids_fold0)}
+    with open(comp_path, "r", encoding="utf-8") as f:
+        comp_data = json.load(f)
+        
+    # 2. FIXED MAPPING: Load the actual beat row assignments
+    beat_pids = np.array(comp_data["patient_ids"])
 
     targets = [
         ("TP", "True Positive (Success)", tp_case, "gradcam_TP_patient_{pid}.png"),
@@ -264,7 +253,13 @@ def main():
         pid, yt, prob = case
 
         try:
-            idx = pid_to_idx[int(pid)]
+            # Safely find all beats belonging to this patient and grab the first one
+            beat_indices = np.where(beat_pids == int(pid))[0]
+            if len(beat_indices) == 0:
+                print(f"Skipping {long_label} for Patient {pid}: No beats found in array.")
+                continue
+                
+            idx = beat_indices[0] 
             signal = wavelets[idx]
             signal = np.transpose(signal)  # [Length, Channels] -> [Channels, Length]
         except (KeyError, IndexError, ValueError):
@@ -291,8 +286,7 @@ def main():
     if generated == 0:
         print("No Grad-CAM plots were generated. Check criteria or JSON array keys.")
     else:
-        print(f"Done. Generated {generated} Grad-CAM figure(s) in: {vis_dir}")
-
+        print(f"\n✅ Done. Generated {generated} Grad-CAM figure(s) in: {vis_dir}")
 
 if __name__ == "__main__":
-    main()
+        main()
