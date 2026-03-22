@@ -73,10 +73,10 @@ from xgboost import XGBClassifier
 RANDOM_SEED = 42
 
 THIS_DIR  = Path(__file__).resolve().parent
-REPO_ROOT = THIS_DIR.parents[1]      # adjust parents[N] to match repo depth
+REPO_ROOT = THIS_DIR.parents[0]      # adjust parents[N] to match repo depth
 
-DATA_PATH  = REPO_ROOT / "Steve"     / "dataset_v4_features_drop14.csv"
-FOLDS_PATH = REPO_ROOT               / "master_folds_drop14.json"
+DATA_PATH  = REPO_ROOT / "preprocessed_dataset" / "dataset_v4_features_drop14.csv"
+FOLDS_PATH = REPO_ROOT / "master_folds_drop14.json"
 OUTPUT_DIR = REPO_ROOT / "results"
 
 # XGBoost hyperparameters
