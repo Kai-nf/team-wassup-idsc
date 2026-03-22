@@ -1,9 +1,14 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from scipy.signal import butter, filtfilt, iirnotch
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.preprocessing import StandardScaler
+from Environment_setup.data_loader import load_raw_dataset
 
 
 # =============================================================================
@@ -257,3 +262,28 @@ def run_preprocessing_pipeline(
     print("  folds = data['folds']")
 
     return folds
+
+if __name__ == '__main__':
+
+    CSV_PATH = 'metadata.csv'
+    DATA_DIR = 'files'
+    OUTPUT_DIR = 'Preprocessed_Dataset'
+
+    print('Loading raw dataset...')
+    all_signals, labels = load_raw_dataset(CSV_PATH, DATA_DIR)
+    print(f'Loaded {all_signals.shape[0]} recordings.')
+
+    arm_name = 'drop14'
+    print(f"Running Method 2 standard clinical preprocessing (arm='{arm_name}')...")
+
+    folds = run_preprocessing_pipeline(
+        all_signals,
+        labels,
+        metadata_csv_path=CSV_PATH,
+        dropped_csv_path=f'felicia/data_preprocessing_method1/dataset_v1_raw_{arm_name}_dropped_ids.csv',
+        manifest_csv_path=f'felicia/data_preprocessing_method1/dataset_v1_raw_{arm_name}_manifest.csv',
+        output_dir=OUTPUT_DIR,
+        arm_name=arm_name,
+    )
+
+    print(f"Saved dataset_v2_filtered_{arm_name}.npy in '{OUTPUT_DIR}' with {len(folds)} folds.")
