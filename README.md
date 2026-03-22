@@ -1,8 +1,13 @@
-# Team Wassup IDSC
+# Team Wassup IDSC: Brugada Syndrome 12-Lead ECG Classification
 
-## Project Overview
+## 🚀 Project Overview
 
-This repository contains the preprocessing and exploratory analysis pipeline for 12-lead ECG data used in Brugada syndrome classification.
+This repository contains the machine learning pipeline and exploratory analysis for detecting Brugada Syndrome from standard 12-lead ECG signals. Because Brugada Syndrome often presents with hidden or transient ECG abnormalities, it is a leading cause of sudden cardiac death in otherwise healthy young adults. We implement a rigorous, end-to-end framework encompassing clinical signal processing, advanced feature engineering, and robust deep learning models **to transform a standard, low-cost ECG into a life-saving, early-warning screening tool.**
+
+**Tech Stack**: PyTorch (1D-CNN), XGBoost, Random Forest, Logistic Regression.  
+**Key Imbalance Mitigation**: SMOTE and ADASYN.
+
+### Dataset Specifications
 
 - Raw ECG source format: WFDB (`.hea` + `.dat`)
 - Sampling frequency: 100 Hz
@@ -43,6 +48,29 @@ Pipeline in [data_preprocessing/standard_clinical_preprocessing.py](data_preproc
 4. Apply per-lead `StandardScaler` fit on train fold only, transform test fold
 5. Save fold-wise filtered tensors
 
+### Method 3: Deep Learning (1D-CNN)
+1. Applies Continuous Wavelet Transform (CWT) to extract time-frequency features.
+2. Trains a custom 1D-CNN evaluated at the patient level.
+3. Pipeline located in `Steve/models/train_1dcnn_beat_level.py`.
+
+### Method 4: Classical ML with Synthetic Balancing
+1. Extracts clinical tabular features (intervals, amplitudes).
+2. Applies SMOTE and ADASYN to aggressively balance the 79/21 class disparity.
+3. Evaluates XGBoost, Random Forest, and Logistic Regression.
+
+### The Ultimate Ensemble
+Combines the deep learning feature extraction of Method 3 with the clinical rule-boundaries of Method 4 using a weighted soft-voting mechanism (CNN 0.65 + LR 0.35) tuned to a 0.35 threshold.
+
+## 📊 Key Results
+
+We rigorously evaluated multiple standalone architectures and ensembles using 5-fold stratified cross-validation (guaranteeing **zero data leakage** at the patient level). 
+
+Our **Ultimate Model** is a **Weighted Soft-Voting Ensemble (CNN 0.65 + LR 0.35)** operating at a decision threshold of **0.35**. 
+
+* **ROC-AUC**: **0.920**
+* **Macro F1**: **0.818**
+* **Clinical Viability**: Met all clinical sensitivity/specificity targets for life-saving screening tools.
+
 ## Generated Outputs
 
 Running [main.py](main.py) generates these files in [data_preprocessing](data_preprocessing):
@@ -63,21 +91,50 @@ Running [main.py](main.py) generates these files in [data_preprocessing](data_pr
 1. [data_preprocessing/dataset_v2_filtered_drop14.npy](data_preprocessing/dataset_v2_filtered_drop14.npy)
 2. [data_preprocessing/dataset_v2_filtered_keepall.npy](data_preprocessing/dataset_v2_filtered_keepall.npy)
 
-## How To Run
+### Method 3 outputs
 
-1. Activate virtual environment
-2. Run pipeline
+1. Saved PyTorch model checkpoints (e.g., `.pt` files) generated in the `Steve/models/` directory.
+2. Evaluation metrics, ROC-AUC curves, and 1D Grad-CAM visualization artifacts.
 
-```bash
-source .venv/bin/activate
-python main.py
-```
+### Method 4 outputs
+
+1. [Preprocessed_Dataset/dataset_v4_features_drop14.csv](Preprocessed_Dataset/dataset_v4_features_drop14.csv)
+2. [Preprocessed_Dataset/dataset_v4_features_keepall.csv](Preprocessed_Dataset/dataset_v4_features_keepall.csv)
+3. [fold_composition_v4_drop14.json](fold_composition_v4_drop14.json)
+4. [fold_composition_v4_keepall.json](fold_composition_v4_keepall.json)
+5. [Steve/method4_extraction_report_drop14.json](Steve/method4_extraction_report_drop14.json)
+6. [Steve/method4_extraction_report_keepall.json](Steve/method4_extraction_report_keepall.json)
+
+## ⚙️ How To Run
+
+1. **Install Dependencies**  
+   Ensure you have Python 3.10+ installed.
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. **Activate virtual environment & Run Pipeline**
+   ```bash
+   source .venv/bin/activate
+   python main.py
+   ```
+
+## 🧠 Interpretability
+
+To bridge the gap between black-box AI and clinical trust, we emphasize Explainable AI (XAI):
+* **1D Grad-CAM (PyTorch)**: Calculates and projects activation gradients back onto the original temporal ECG signal, directly showing cardiologists the exact waveform regions (e.g., coved ST-segment elevations) that triggered a Brugada prediction.
+* **SHAP (SHapley Additive exPlanations)**: Used for evaluating feature importance in our tabular models (XGBoost, Random Forest).
 
 ## EDA and Data Quality Artifacts
 
 1. EDA notebook: [eda_report.ipynb](eda_report.ipynb)
 2. Data integrity summary: [Data_Integrity_Report.md](Data_Integrity_Report.md)
 3. Phase 1 signal-quality flags: [data_preprocessing/flagged_recordings_phase1.csv](data_preprocessing/flagged_recordings_phase1.csv)
+
+## 📚 Mandatory Citations
+
+1. García-Iglesias, D., Calvo, D., & de Cos, F. J. (2024). 12-lead ECGs of Brugada syndrome patients and controls (version 1.0.0). PhysioNet. https://doi.org/10.13026/0q9p-1474.
+2. Goldberger, A., Amaral, L., Glass, L., Hausdorff, J., Ivanov, P. C., Mark, R., ... & Stanley, H. E. (2000). PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals. Circulation [Online]. 101 (23), pp. e215–e220.
 
 ## Notes
 
