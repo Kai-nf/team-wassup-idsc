@@ -84,17 +84,17 @@ VERSION_CONFIG = {
         "data_format":   "dict_npy",
     },
     "v3.2": {
-        "wavelet_path":  THIS_DIR.parents[1] / "JiaKang" / "dataset_v3.2_wavelet.npy",
-        "manifest_path": THIS_DIR.parents[1] / "JiaKang" / "fold_composition_v3.2.json",
+        "wavelet_path":  THIS_DIR.parents[0] / "preprocessed_dataset" /  "dataset_v3.2_wavelet.npy",
+        "manifest_path": THIS_DIR.parents[0] / "preprocessed_dataset" / "fold_composition_v3.2.json",
         "output_file":   "method3.2_svm_smote.json",
         "split_source":  "fold_composition_v3.2.json",
         "data_format":   "tensor_npy_with_json",
     },
     "v4": {
-        "wavelet_path":  THIS_DIR.parents[1] / "Steve" / "dataset_v4_features_drop14.csv",
-        "manifest_path": THIS_DIR.parents[1] / "Steve" / "fold_composition_v4_drop14.json",
+        "wavelet_path":  THIS_DIR.parents[0] / "preprocessed_dataset" / "dataset_v4_features_drop14.csv",
+        "manifest_path": THIS_DIR.parents[0] / "master_folds_drop14.json",
         "output_file":   "method4_svm_smote.json",
-        "split_source":  "fold_composition_v4_drop14.json",
+        "split_source":  "master_folds_drop14.json",
         "data_format":   "csv_with_json",
     },
 }
@@ -265,13 +265,10 @@ def load_v3_2(cfg: dict):
 
 def load_v4(cfg: dict):
     """
-    Load v4 tabular feature dataset.
+    Load v4 tabular feature dataset strictly using the Master JSON Manifest.
 
     CSV         : rows = patients, columns = features + patient_id + label
-    Fold JSON   : fold_composition_v4_drop14.json
-                  folds[k][train/test][indices] -> row indices into dataframe
-
-    patient_id and label columns are excluded from X features.
+    Fold JSON   : master_folds_drop14.json (strictly uses patient_ids)
 
     Returns
     -------
@@ -280,40 +277,42 @@ def load_v4(cfg: dict):
     """
     df = pd.read_csv(str(cfg["wavelet_path"]))
 
-    # Identify feature columns — exclude patient_id and label
-    exclude_cols = {"patient_id", "label"}
-    feature_cols = [c for c in df.columns if c.lower() not in exclude_cols]
-    if "label" not in [c.lower() for c in df.columns]:
-        raise KeyError(
-            "[ERROR] 'label' column not found in {}. "
-            "Available columns: {}".format(cfg["wavelet_path"], list(df.columns))
-        )
-
-    # Get label column with case-insensitive lookup
+    # 1. Identify critical columns (case-insensitive)
+    pid_col = next(c for c in df.columns if c.lower() == "patient_id")
     label_col = next(c for c in df.columns if c.lower() == "label")
+    
+    exclude_cols = {pid_col.lower(), label_col.lower()}
+    feature_cols = [c for c in df.columns if c.lower() not in exclude_cols]
+
+    # 2. Extract matrices and create a Patient ID lookup dictionary
     X_full = df[feature_cols].to_numpy(dtype=np.float32)
     y_full = df[label_col].to_numpy(dtype=np.int8)
+    
+    # Map '188981' -> Row Index 0
+    pids = df[pid_col].astype(str).to_numpy()
+    pid_to_idx = {pid: idx for idx, pid in enumerate(pids)}
 
+    # 3. Load the Master Manifest
     with open(str(cfg["manifest_path"]), "r", encoding="utf-8") as f:
         manifest = json.load(f)
 
     if "folds" not in manifest:
-        raise KeyError("[ERROR] 'folds' key missing in fold_composition_v4_drop14.json.")
+        raise KeyError("[ERROR] 'folds' key missing in master manifest.")
 
     folds_data = []
+    
+    # 4. Strictly map folds using Patient IDs
     for fold_key in sorted(manifest["folds"].keys(), key=lambda k: int(k)):
         fold = manifest["folds"][fold_key]
 
-        # Defensive key lookup — v4 uses 'indices'; raise clearly if missing
-        for split in ("train", "test"):
-            if "indices" not in fold[split]:
-                raise KeyError(
-                    "[ERROR] fold {} {} has no 'indices' key. "
-                    "Available keys: {}".format(fold_key, split, list(fold[split].keys()))
-                )
+        # Extract the string patient IDs from the JSON
+        train_pids = fold["train"]["patient_ids"]
+        test_pids  = fold["test"]["patient_ids"]
 
-        train_idx = np.array(fold["train"]["indices"], dtype=int)
-        test_idx  = np.array(fold["test"]["indices"],  dtype=int)
+        # Convert those Patient IDs into the physical row indices of X_full
+        train_idx = np.array([pid_to_idx[str(p)] for p in train_pids if str(p) in pid_to_idx], dtype=int)
+        test_idx  = np.array([pid_to_idx[str(p)] for p in test_pids if str(p) in pid_to_idx], dtype=int)
+
         folds_data.append({
             "X_train": X_full[train_idx],
             "X_test":  X_full[test_idx],
@@ -323,7 +322,7 @@ def load_v4(cfg: dict):
             "feature_cols": feature_cols,
         })
 
-    return folds_data, "fold_composition_v4_drop14.json (indices)"
+    return folds_data, "master_folds_drop14.json (patient_ids)"
 
 
 def load_dataset(cfg: dict):
