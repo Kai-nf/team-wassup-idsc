@@ -1,19 +1,28 @@
-wfdb
-numpy
-pandas
-matplotlib
-seaborn
-scipy
-scikit-learn
-os
-tensorflow
-torch
-pathlib
-collections
-sys
-argparse
-warnings
-typing
-shap
-imblearn
-xgboost
+# =================================================================
+# Team Wassup IDSC - Brugada Syndrome Classification
+# requirements.txt
+# =================================================================
+
+# --- Core Data Processing & Math ---
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# --- Machine Learning (Tabular Models & Ensembles) ---
+scikit-learn>=1.2.0
+xgboost>=2.0.0
+imbalanced-learn>=0.11.0     # Required for SMOTE and ADASYN
+
+# --- Deep Learning (1D-CNN) ---
+torch>=2.0.0                 # PyTorch core
+
+# --- ECG Signal Processing & Clinical Tools ---
+wfdb>=4.1.0                  # Required for loading raw PhysioNet records
+neurokit2>=0.2.7             # Required for Method 4 ECG feature delineation
+
+# --- Visualization ---
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# --- Code Quality & Static Typing (Optional) ---
+pyre-check>=0.9.0            # Used by your .pyre_configuration file

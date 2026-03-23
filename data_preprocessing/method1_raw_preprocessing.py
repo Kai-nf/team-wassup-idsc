@@ -1,4 +1,6 @@
 import json
+import sys
+import os
 from pathlib import Path
 
 import numpy as np
@@ -21,13 +23,14 @@ def _binarize_brugada_labels(labels):
 def run_raw_baseline_pipeline(
     all_signals,
     labels,
-    metadata_csv_path='metadata.csv',
-    flagged_csv_path='flagged_recordings_phase1.csv',
-    output_dir='felicia/data_preprocessing_method1',
-    arm_name='drop14',
-    drop_flagged_in_phase1=True,
-    n_splits=5,
-    random_state=42,
+    metadata_csv_path = 'metadata.csv',
+    flagged_csv_path = 'flagged_recordings_phase1.csv',
+    manifest_json_path = 'master_folds_drop14.json',
+    output_dir = 'preprocessed_dataset',
+    arm_name = 'drop14',
+    drop_flagged_in_phase1 = True,
+    n_splits = 5,
+    random_state = 42,
 ):
     """
     Method 1 (Raw Baseline):
@@ -82,15 +85,30 @@ def run_raw_baseline_pipeline(
 
     class_counts = pd.Series(y_clean).value_counts().sort_index()
 
-    groups_clean = ids_clean
-    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    # 1. Load the Master JSON
+    manifest_file = Path(manifest_json_path)
+    if not manifest_file.exists():
+        raise FileNotFoundError(f"[ABORT] Cannot find {manifest_file}.")
+        
+    with open(manifest_file, 'r') as f:
+        master_folds = json.load(f)
+
+    # 2. Create a dictionary to find which row belongs to which patient
+    pid_to_clean_idx = {str(pid): idx for idx, pid in enumerate(ids_clean)}
+
     folds = []
     clean_original_indices = np.where(keep_mask)[0]
     test_fold_assignments = np.full(len(X_clean), -1, dtype=int)
 
-    for fold_idx, (train_idx, test_idx) in enumerate(
-        sgkf.split(X_clean, y_clean, groups=groups_clean)
-    ):
+    # 3. Loop through the JSON explicitly, not a random split
+    for fold_idx in range(n_splits):
+        fold_key = str(fold_idx)
+        train_pids = master_folds["folds"][fold_key]["train"]["patient_ids"]
+        test_pids = master_folds["folds"][fold_key]["test"]["patient_ids"]
+        
+        # 4. Map the string IDs back to integer row indices
+        train_idx = np.array([pid_to_clean_idx[str(p)] for p in train_pids if str(p) in pid_to_clean_idx], dtype=int)
+        test_idx = np.array([pid_to_clean_idx[str(p)] for p in test_pids if str(p) in pid_to_clean_idx], dtype=int)
         folds.append({
             'fold': fold_idx,
             'X_train': X_clean[train_idx],
@@ -141,6 +159,7 @@ def run_raw_baseline_pipeline(
         'excluded_records': int((~keep_mask).sum()),
         'retained_records': int(keep_mask.sum()),
         'arm_name': arm_name,
+        'fold_source': manifest_json_path,
         'n_splits': n_splits,
         'fold_sizes': fold_sizes,
         'class_counts_after_exclusion': {
@@ -158,3 +177,40 @@ def run_raw_baseline_pipeline(
     print(f"Retained records: {summary['retained_records']} | Excluded: {summary['excluded_records']}")
 
     return folds
+
+if __name__ == "__main__":
+    
+    # Add repo root to Python path so we can import the data loader
+    REPO_ROOT = Path(__file__).resolve().parent.parent 
+    sys.path.append(str(REPO_ROOT))
+    from Environment_setup.data_loader import load_raw_dataset
+
+    # 1. Define your new clean paths
+    CSV_PATH           = REPO_ROOT / 'Environment_setup' / 'metadata.csv'
+    DATA_DIR           = REPO_ROOT / 'Environment_setup' / 'files'
+    FLAGGED_CSV        = REPO_ROOT / 'flagged_recordings_phase1.csv' # Adjust if this is elsewhere!
+    MANIFEST_JSON_PATH = REPO_ROOT / 'master_folds_drop14.json'
+    OUTPUT_DIR         = REPO_ROOT / 'Preprocessed_Dataset'
+    ARM_NAME           = 'drop14'
+
+    print("--- Loading Raw WFDB Signals ---")
+    # Pass as strings to the loader
+    all_signals, labels = load_raw_dataset(str(CSV_PATH), str(DATA_DIR))
+    print(f"Loaded {all_signals.shape[0]} raw patient records.")
+
+    print(f"\n--- Running Method 1 (Raw Baseline) [{ARM_NAME}] ---")
+    folds_v1 = run_raw_baseline_pipeline(
+        all_signals=all_signals,
+        labels=labels,
+        metadata_csv_path=str(CSV_PATH),
+        flagged_csv_path=str(FLAGGED_CSV),
+        manifest_json_path=str(MANIFEST_JSON_PATH),
+        output_dir=str(OUTPUT_DIR),
+        arm_name=ARM_NAME,
+        drop_flagged_in_phase1=True
+    )
+    
+    print("\n--- FINISHED ---")
+    print(f"Check your '{OUTPUT_DIR.name}' folder for the new dataset_v1_raw_{ARM_NAME}.npy file!")
+
+    

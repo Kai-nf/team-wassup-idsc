@@ -3,6 +3,7 @@
   "excluded_records": 14,
   "retained_records": 349,
   "arm_name": "drop14",
+  "fold_source": "C:\\Users\\Owner\\Documents\\GitHub\\team-wassup-idsc\\master_folds_drop14.json",
   "n_splits": 5,
   "fold_sizes": [
     {
@@ -33,12 +34,10 @@
   ],
   "class_counts_after_exclusion": {
     "0": 277,
-    "1": 65,
-    "2": 7
+    "1": 72
   },
   "excluded_by_reason": {
     "flagged_in_phase1": 14,
-    "non_finite_signal": 0,
-    "missing_label": 0
+    "non_finite_signal": 0
   }
 }
