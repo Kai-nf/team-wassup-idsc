@@ -190,11 +190,10 @@ Pipeline:
 3. Beat segmentation (101 samples) - Once an R-peak is confirmed, the script acts like a cookie-cutter. It slices out exactly 0.5 seconds before and 0.5 seconds after the peak, resulting in a perfectly centered 1-second heartbeat.
 
 Outputs Generated:
-* dataset_v3.1_wavelet.npy: A single, massive NumPy array containing every single extracted heartbeat from all clean patients. (Unlike Methods 1 & 2, this is just raw arrays, not a dictionary of folds).
+* dataset_v3.1_wavelet.npy: A pure multidimensional NumPy array containing all extracted heartbeats.
 
 Tensor Shape:
-* (N_total_beats, 101, 12)
-* Notice the major difference here: The time dimension is now 101 (representing 1 second of data at 100Hz: 50 samples before + 1 center peak + 50 samples after). N is no longer the number of patients, but the total number of valid heartbeats extracted across the whole cohort.
+* (N_total_beats, 101, 12) - representing 1 second of centered heartbeat data (50 samples before + R-peak + 50 samples after) across 12 leads.
 
 Input shape:
 
@@ -221,10 +220,10 @@ Extracts **19 clinical features**:
 * Uses "Median Imputation" as a safety net. If a signal is slightly messy and the algorithm fails to calculate one specific feature (resulting in a NaN), it fills that blank with the median value of the rest of the cohort so you don't lose the entire patient record.
 
 Outputs Generated:
-* dataset_v4_features_{arm_name}.csv: A simple, flat spreadsheet containing the 19 numerical features and the final label for each patient.
+* dataset_v4_features_{arm_name}.csv: Contains the 19 numerical features and the final label for each patient.
 
 Data Shape:
-* (N_patients, 19) — This is a massive reduction in dimensionality. Instead of 12,000 data points per patient (10 seconds * 100 Hz * 12 leads), your model only has to analyze 19 distinct numbers per patient.
+* (N_patients, 19) — Dimensionality is drastically reduced from the raw waveforms to focus strictly on human-readable clinical biomarkers.
 
 Uses:
 
