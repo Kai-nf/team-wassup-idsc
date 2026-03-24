@@ -73,7 +73,7 @@ from sklearn.metrics import (
 # =============================================================================
 
 # ── File paths ────────────────────────────────────────────────────────────────
-JSON_MODEL_A = Path("results/method4_xgboost_smote.json")   # can be changed, now is rf_smote
+JSON_MODEL_A = Path("felicia/results/evaluation_metrics/method4_logistic_smote.json")   # can be changed, now is rf_smote
 JSON_MODEL_B = Path("results/method3.1_1dcnn_beat_level.json")  # can be changed
 
 # ── Ensemble weights ──────────────────────────────────────────────────────────

@@ -87,7 +87,7 @@ XGBoost
 python model/models_xgboost.py --resampler {adasyn,smote,borderline_smote,none}
 ```
 
-1D-CNN (beat-level_)
+1D-CNN (beat-level)
 ```bash
 python model/1d_cnn_beat_level.py --mode {v3,v3.1}
 ```
@@ -103,19 +103,24 @@ python model/1d_cnn_patient_level.py
 python versatile_ensemble.py
 ```
 
-Set weights22q:
-
+* Set weights:
+Adjust the proportional weight given to each model's prediction. Empirical testing shows that heavily favoring the CNN's spatial pattern recognition, while using the Logistic Regression as a morphological stabilizer, yields the highest ROC-AUC.
 ```python
-W_MODEL_A = 0.35
-W_MODEL_B = 0.65
+W_MODEL_A = 0.35 # Weight for Tabular Model 
+W_MODEL_B = 0.65 # Weight for Deep Learning Model
 ```
 
+* Set thresholds:
+In standard machine learning, the decision boundary is 0.5. However, Brugada syndrome is a life-threatening arrhythmia. To minimize False Negatives, we dynamically lower the decision threshold to prioritize Recall (Sensitivity), ensuring we flag high-risk patients even if the model is slightly uncertain.
+```python
+THRESHOLD = 0.35 (Any combined probability >= 0.35 is classified as Brugada)
+```
 ---
 
 ### 6. Aggregate Results
 
 ```bash
-python aggregate_results.py
+python results/aggregate_results.py
 ```
 
 ---
@@ -228,14 +233,23 @@ IsotonicRegression
 
 ## 📈 Key Results
 
+### 👍 Recommended Operating Point
+
+| Configuration | Threshold | Recall | Specificity | F1 | ROC-AUC | Context |
+| ----------- | --------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+| CNN 0.65 + LR 0.35 | 0.35 | 0.806 | 0.888 | 0.818 | 0.920 | Diagnostic support |
+| CNN 0.65 + RF 0.35 | 0.25 | 0.875 | 0.805 | 0.771 | 0.920 | Population screening |
+
+✅ Both configurations meet the clinical targets of recall ≥ 0.80 and specificity ≥ 0.70 simultaneously — a result no single model achieved in isolation.
+
 ### 🎯 Ultimate Model: CNN (0.65) + LR (0.35)
 
 | Metric      | Value     |
 | ----------- | --------- |
 | ROC-AUC     | **0.920** |
 | Macro F1    | **0.818** |
-| Recall      | ≥ 0.80    |
-| Specificity | ≥ 0.70    |
+| Recall      | ≥ 0.80 (0.807)    |
+| Specificity | ≥ 0.70 (0.884)    |
 
 ✅ Meets clinical screening thresholds
 
@@ -243,7 +257,7 @@ IsotonicRegression
 
 ## 🧬 ECG Augmentation Strategy
 
-Applied only during training:
+The augmentation strategies are divided into three tiers:
 
 | Type       | Examples            |
 | ---------- | ------------------- |
@@ -251,9 +265,13 @@ Applied only during training:
 | Temporal   | Drift, shift, warp  |
 | Structural | Channel dropout     |
 
+* Amplitude tier (noise, gain) — fire independently. Scale amplitude only; never alter waveform shape. Safe to stack.
+* Temporal tier (drift, shift, warp) — each individually safe, but stacking two or more distorts the ST segment non-linearly. At independent p=0.5 for each: 56.3% of beats previously received 3+ simultaneous temporal distortions (the Avalanche Effect). Fixed in v2 with a shared budget: exactly one of {drift, shift, warp} fires per beat.
+* Structural tier (channel dropout) — independent of morphology, safe with any combination.
+
 ⚠️ Constraint:
 
-* **V1–V3 leads protected** (critical for Brugada detection)
+* **V1–V3 leads (leads indices 6,7,8) protected** (critical for Brugada detection)
 
 ---
 
@@ -308,7 +326,7 @@ To bridge the gap between black-box AI and clinical trust, we emphasize Explaina
 
 Brugada Syndrome often hides in plain sight, making sudden cardiac death the first and only symptom for many young patients. By engineering a pipeline that is both highly sensitive and explicitly interpretable, we transform a standard, low-cost 12-lead ECG into a pervasive early-warning system. This model provides a digital safety net for primary care clinics, shifting diagnostic power away from expensive, reactive specialist centers to proactive, life-saving screening.
 
-## 📚 Mandatory Citations
+## 📚 Citations
 
 1. García-Iglesias, D., Calvo, D., & de Cos, F. J. (2024).  
    *12-lead ECGs of Brugada syndrome patients and controls (version 1.0.0).*  
