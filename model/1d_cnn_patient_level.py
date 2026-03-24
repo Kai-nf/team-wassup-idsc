@@ -66,9 +66,9 @@ ES_PATIENCE    = 15
 THRESHOLD      = 0.5
 
 THIS_DIR       = Path(__file__).resolve().parent
-PATH_WAVELET   = THIS_DIR.parent / "dataset_v3.2_wavelet.npy"
-PATH_FOLD_COMP = THIS_DIR.parent / "fold_composition_v3.2.json"
-PATH_MANIFEST  = Path("master_folds_drop14.json")
+PATH_WAVELET   = THIS_DIR.parent / "preprocessed_dataset" / "dataset_v3.2_wavelet.npy"
+PATH_FOLD_COMP = THIS_DIR.parent / "preprocessed_dataset" / "fold_composition_v3.2.json"
+PATH_MANIFEST  = THIS_DIR.parent / "master_folds_drop14.json"
 
 OUTPUT_DIR     = Path("results")
 OUTPUT_FILE    = "method3.2_1dcnn_patient_level.json"
@@ -102,7 +102,6 @@ def debug_paths():
         raise FileNotFoundError(
             "\n[ABORT] One or more required files are missing.\n"
             "Ensure this script is in the same folder as master_folds_drop14.json\n"
-            "and a JiaKang/ subfolder contains the wavelet and fold_composition files."
         )
     print("All files found. Proceeding.\n")
 

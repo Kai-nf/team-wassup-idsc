@@ -72,14 +72,30 @@ python data_preprocessing/method4_feature_engineering.py \
 
 ### 4. Train Models
 
+Random Forest / Logistic Regression
 ```bash
-python model/svm_trainer.py --resampler smote
-python model/xgboost_trainer.py --resampler adasyn
-python model/logistic_trainer.py --resampler smote
-python model/1dcnn_beat_level.py --mode v3.1
+python felicia/models/models.py --method {method1,method2,method3,method3_1,method3_2,method4} --model {logistic,rf} --resampler {none,smote,borderline_smote,adasyn}
 ```
 
----
+SVM
+```bash
+python model/svm_trainer.py --version {v1,v2,v3,v4}
+```
+
+XGBoost
+```bash
+python model/models_xgboost.py --resampler {adasyn,smote,borderline_smote,none}
+```
+
+1D-CNN (beat-level_)
+```bash
+python model/1d_cnn_beat_level.py --mode {v3,v3.1}
+```
+
+1D-CNN (patient-level)
+```bash
+python model/1d_cnn_patient_level.py 
+```
 
 ### 5. Ensemble
 
@@ -87,7 +103,7 @@ python model/1dcnn_beat_level.py --mode v3.1
 python versatile_ensemble.py
 ```
 
-Set weights:
+Set weights22q:
 
 ```python
 W_MODEL_A = 0.35

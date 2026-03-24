@@ -40,7 +40,7 @@ if (ROOT_DIR / "data_loader.py").exists() is False:
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from data_preprocessing.method2 import apply_clinical_filters
+from data_preprocessing.method2_standard_clinical_preprocessing import apply_clinical_filters
 
 
 def _resolve_load_raw_dataset():
