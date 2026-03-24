@@ -68,6 +68,7 @@ python data_preprocessing/method4_feature_engineering.py \
        Environment_setup/metadata.csv Environment_setup/files preprocessed_dataset
 ```
 
+
 ---
 
 ### 4. Train Models
@@ -150,6 +151,14 @@ All methods:
 * Applies cohort filtering (`drop14` / `keepall`)
 * Saves fold-wise tensors
 
+Outputs Generated:
+* dataset_v1_raw_drop14.npy: The core dataset containing the pre-split folds.
+* dataset_v1_raw_drop14_manifest.csv: A complete audit trail of all patients, their inclusion status, and assigned test folds.
+* dataset_v1_raw_drop14_dropped_ids.csv: A specific log of excluded patients for downstream tracking.
+* dataset_v1_raw_drop14_summary.json: High-level metrics on retained/excluded records and class balances.
+
+* Tensor Shape: (N_patients, 1000, 12) — representing 10 seconds of raw data at 100 Hz across 12 standard leads.
+
 ---
 
 ### Method 2: Clinical Preprocessing
@@ -159,10 +168,14 @@ Applies:
 * **Bandpass filter (0.5–40 Hz)**
 * **50 Hz notch filter**
 * Per-lead normalization (train-only fit)
-
 ```python
 from scipy.signal import butter, filtfilt, iirnotch
 ```
+
+Outputs Generated:
+* dataset_v2_filtered_drop14.npy: The core dataset containing the filtered, scaled, and pre-split folds.
+
+*Tensor Shape: (N_patients, 1000, 12) — representing 10 seconds of filtered data at 100 Hz across 12 standard leads.
 
 ---
 
@@ -170,9 +183,18 @@ from scipy.signal import butter, filtfilt, iirnotch
 
 Pipeline:
 
-1. Wavelet denoising (db4, 4 levels)
-2. R-peak detection (WFDB XQRS)
-3. Beat segmentation (101 samples)
+1. Wavelet denoising (db4, 4 levels) - Instead of standard clinical bandpass filters (Method 2), this uses a Daubechies 4 (db4) wavelet transform. It decomposes the signal into 4 levels, zeros out the lowest frequency (cA4) to completely flatten baseline wander, and uses statistical soft-thresholding to smooth out high-frequency noise.
+
+2. R-peak detection (WFDB XQRS) - It runs the XQRS detection algorithm on every single lead. To avoid false positives, it requires a "consensus" where at least 3 separate leads agree on the exact location of an R-peak within a 0.2-second window (with safe fallbacks to 2 or 1 lead if necessary).
+
+3. Beat segmentation (101 samples) - Once an R-peak is confirmed, the script acts like a cookie-cutter. It slices out exactly 0.5 seconds before and 0.5 seconds after the peak, resulting in a perfectly centered 1-second heartbeat.
+
+Outputs Generated:
+* dataset_v3.1_wavelet.npy: A single, massive NumPy array containing every single extracted heartbeat from all clean patients. (Unlike Methods 1 & 2, this is just raw arrays, not a dictionary of folds).
+
+Tensor Shape:
+* (N_total_beats, 101, 12)
+* Notice the major difference here: The time dimension is now 101 (representing 1 second of data at 100Hz: 50 samples before + 1 center peak + 50 samples after). N is no longer the number of patients, but the total number of valid heartbeats extracted across the whole cohort.
 
 Input shape:
 
