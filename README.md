@@ -175,7 +175,7 @@ from scipy.signal import butter, filtfilt, iirnotch
 Outputs Generated:
 * dataset_v2_filtered_drop14.npy: The core dataset containing the filtered, scaled, and pre-split folds.
 
-*Tensor Shape: (N_patients, 1000, 12) — representing 10 seconds of filtered data at 100 Hz across 12 standard leads.
+* Tensor Shape: (N_patients, 1000, 12) — representing 10 seconds of filtered data at 100 Hz across 12 standard leads.
 
 ---
 
@@ -212,9 +212,19 @@ CNN outputs are aggregated to patient-level via:
 
 Extracts **19 clinical features**:
 
-* Intervals (QRS, PR, RR)
-* Amplitudes
-* Brugada-specific ST features
+* Applies the exact same clinical Bandpass (0.5-40 Hz) and Notch (50 Hz) filters used in Method 2 to establish a clean baseline.
+
+* Utilizes the neurokit2 library to perform automated ECG delineation . This finds the exact mathematical onset, peak, and offset of every P, Q, R, S, and T wave.
+
+* Calculates 19 highly specific metrics, focusing heavily on leads V1, V2, and V3 (the precordial leads where Brugada morphology actually manifests). Features include ST-segment elevation, QRS duration, and T-wave symmetry.
+
+* Uses "Median Imputation" as a safety net. If a signal is slightly messy and the algorithm fails to calculate one specific feature (resulting in a NaN), it fills that blank with the median value of the rest of the cohort so you don't lose the entire patient record.
+
+Outputs Generated:
+* dataset_v4_features_{arm_name}.csv: A simple, flat spreadsheet containing the 19 numerical features and the final label for each patient.
+
+Data Shape:
+* (N_patients, 19) — This is a massive reduction in dimensionality. Instead of 12,000 data points per patient (10 seconds * 100 Hz * 12 leads), your model only has to analyze 19 distinct numbers per patient.
 
 Uses:
 
